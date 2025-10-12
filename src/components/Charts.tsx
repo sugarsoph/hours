@@ -34,16 +34,13 @@ function hours(n: number) {
 export default function Charts() {
   const today = new Date();
 
-  // ──────────────────────────────────────────────────────────────────────────────
   // LABELS (for colors)
   const { data: labels = [] } = useSWR<LabelRow[]>("/api/labels", api);
   const labelColor = (name: string) =>
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
-  // ──────────────────────────────────────────────────────────────────────────────
   // DAILY (7-day window; slider only forward)
   const [dailyOffsetDays, setDailyOffsetDays] = useState<number>(0); // 0..365
-
   const dailyEnd = addDays(today, dailyOffsetDays);
   const dailyStart = addDays(dailyEnd, -6);
 
@@ -66,9 +63,7 @@ export default function Charts() {
     hours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0)
   );
 
-  // ──────────────────────────────────────────────────────────────────────────────
   // MONTHLY (12 stacked bars by month, each bar stacked by label)
-  // Window: current month → next 11 months
   const monthsWindow = useMemo(
     () => Array.from({ length: 12 }, (_, i) => startOfMonth(addMonths(today, i))),
     [today]
@@ -86,53 +81,47 @@ export default function Charts() {
     api
   );
 
-  // Build list of labels that appear within the window (so the stack includes all)
+  // labels present in the window
   const windowLabelSet = useMemo(() => {
     const s = new Set<string>();
     windowEntries.forEach((e) => s.add(e.label));
     return Array.from(s);
   }, [windowEntries]);
 
-  // For each label, compute an array of 12 monthly totals (in hours)
+  // Build stacked datasets (hours per month per label)
   const stackedDatasets = useMemo(() => {
-    // Precompute month index for each entry (0..11 relative to monthsWindow[0])
     const baseMonth = monthsWindow[0].getMonth();
     const baseYear = monthsWindow[0].getFullYear();
-
-    // map: label -> number[12] minutes
     const acc: Record<string, number[]> = {};
     windowLabelSet.forEach((l) => (acc[l] = new Array(12).fill(0)));
 
     windowEntries.forEach((e) => {
       const d = new Date(e.day);
-      // compute offset months between base and this date
-      const offset =
-        (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
-      if (offset >= 0 && offset < 12) {
-        const arr = acc[e.label];
-        if (arr) arr[offset] += e.minutes;
-      }
+      const offset = (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
+      if (offset >= 0 && offset < 12) acc[e.label][offset] += e.minutes;
     });
 
-    // Convert to Chart.js datasets (hours + color)
     return windowLabelSet.map((labelName) => ({
       label: labelName,
       data: acc[labelName].map((min) => hours(min)),
       backgroundColor: labelColor(labelName),
       borderWidth: 0,
-      stack: "months", // ensures stacking
+      stack: "months",
+      // make bars less chunky
+      barPercentage: 0.8,
+      categoryPercentage: 0.8,
+      maxBarThickness: 42,
     }));
   }, [windowEntries, windowLabelSet, monthsWindow, labelColor]);
 
-  // Show year range caption, e.g., "2025 — 2026"
+  // year caption like "2025 — 2026"
   const yearCaption = (() => {
     const firstY = monthsWindow[0].getFullYear();
     const lastY = monthsWindow[monthsWindow.length - 1].getFullYear();
     return firstY === lastY ? String(firstY) : `${firstY} — ${lastY}`;
   })();
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // TASK BREAKDOWN (current month totals by label, horizontal)
+  // TASK BREAKDOWN (current month totals by label)
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
 
@@ -152,8 +141,7 @@ export default function Charts() {
   const tbData = tbLabels.map((l) => hours(byLabelMonth.get(l) || 0));
   const tbColors = tbLabels.map((l) => labelColor(l));
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // OVERVIEW PIE (year-to-date totals by label)
+  // OVERVIEW PIE (year-to-date)
   const yStart = startOfYear(today);
   const yEnd = endOfYear(today);
   const { data: yearEntries = [] } = useSWR<Entry[]>(
@@ -201,20 +189,24 @@ export default function Charts() {
           </div>
         </div>
 
-        <Bar
-          data={{
-            labels: dailyLabels,
-            datasets: [{ label: "Hours", data: dailyData, backgroundColor: "#FFD7E2" }],
-          }}
-          options={{
-            scales: {
-              y: { min: 0, max: 16, ticks: { callback: (v) => `${v}h` } }, // ⬅️ max 16
-            },
-            plugins: {
-              tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
-            },
-          }}
-        />
+        <div style={{ height: 220 }}>
+          <Bar
+            data={{
+              labels: dailyLabels,
+              datasets: [{ label: "Hours", data: dailyData, backgroundColor: "#FFD7E2" }],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false, // respect the fixed container height
+              scales: {
+                y: { min: 0, max: 16, ticks: { callback: (v) => `${v}h` } },
+              },
+              plugins: {
+                tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
+              },
+            }}
+          />
+        </div>
       </div>
 
       {/* MONTHLY (12 stacked bars) */}
@@ -224,98 +216,111 @@ export default function Charts() {
           <small>{yearCaption}</small>
         </div>
 
-        <Bar
-          data={{
-            labels: monthsLabels, // Oct, Nov, ... for 12 months starting now
-            datasets: stackedDatasets, // stacked by label
-          }}
-          options={{
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              x: { stacked: true, grid: { display: true, lineWidth: 0.3 } },
-              y: {
-                stacked: true,
-                beginAtZero: true,
-                min: 0,
-                max: 200, // overall monthly cap (stacked)
-                ticks: { callback: (v) => `${v}h` },
-                grid: { lineWidth: 0.3 },
+        <div style={{ height: 220 }}>
+          <Bar
+            data={{
+              labels: monthsLabels,
+              datasets: stackedDatasets,
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false, // respect 220px container
+              scales: {
+                x: {
+                  stacked: true,
+                  grid: { display: true, lineWidth: 0.3 },
+                  ticks: { autoSkip: false }, // keep all 12 months visible
+                },
+                y: {
+                  stacked: true,
+                  beginAtZero: true,
+                  min: 0,
+                  max: 200,
+                  ticks: { callback: (v) => `${v}h` },
+                  grid: { lineWidth: 0.3 },
+                },
               },
-            },
-            plugins: {
-              legend: { position: "bottom" },
-              tooltip: {
-                callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
+              plugins: {
+                legend: { position: "bottom" },
+                tooltip: {
+                  callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
+                },
               },
-            },
-          }}
-          height={300}
-        />
+            }}
+          />
+        </div>
       </div>
 
       {/* TASK BREAKDOWN (current month) */}
       <div className="section card">
         <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝑜𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
-        <Bar
-          data={{
-            labels: tbLabels,
-            datasets: [
-              {
-                label: "Hours",
-                data: tbData,
-                backgroundColor: tbColors.length ? tbColors : "#FFD7E2",
+        <div style={{ height: 260 }}>
+          <Bar
+            data={{
+              labels: tbLabels,
+              datasets: [
+                {
+                  label: "Hours",
+                  data: tbData,
+                  backgroundColor: tbColors.length ? tbColors : "#FFD7E2",
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              indexAxis: "y" as const,
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  min: 0,
+                  max: 200,
+                  ticks: { callback: (v) => `${v}h` },
+                  grid: { lineWidth: 0.3 },
+                },
               },
-            ],
-          }}
-          options={{
-            indexAxis: "y" as const,
-            scales: {
-              x: {
-                beginAtZero: true,
-                min: 0,
-                max: 200,
-                ticks: { callback: (v) => `${v}h` },
-                grid: { lineWidth: 0.3 },
+              plugins: {
+                tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
+                legend: { display: false },
               },
-            },
-            plugins: {
-              tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
-              legend: { display: false },
-            },
-          }}
-        />
+            }}
+          />
+        </div>
       </div>
 
       {/* OVERVIEW (pie, year-to-date) */}
       <div className="section card">
         <h2>𝒪𝓋𝑒𝓇𝓋𝒾𝑒𝔀</h2>
-        <Pie
-          data={{
-            labels: overviewLabels,
-            datasets: [
-              {
-                data: overviewData,
-                backgroundColor: overviewColors.length ? overviewColors : ["#FFD7E2"],
-                borderWidth: 0,
-              },
-            ],
-          }}
-          options={{
-            plugins: {
-              legend: { position: "bottom" },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => {
-                    const label = ctx.label || "";
-                    const val = ctx.parsed as number;
-                    return `${label}: ${val} h`;
+        <div style={{ height: 260 }}>
+          <Pie
+            data={{
+              labels: overviewLabels,
+              datasets: [
+                {
+                  data: overviewData,
+                  backgroundColor: overviewColors.length ? overviewColors : ["#FFD7E2"],
+                  borderWidth: 0,
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: "bottom" },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const label = ctx.label || "";
+                      const val = ctx.parsed as number;
+                      return `${label}: ${val} h`;
+                    },
                   },
                 },
               },
-            },
-          }}
-        />
+            }}
+          />
+        </div>
       </div>
     </div>
   );
