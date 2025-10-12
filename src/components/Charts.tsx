@@ -1,5 +1,3 @@
-// Charts.tsx (replace your current file with this block)
-
 import React, { useState } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
@@ -36,9 +34,9 @@ function hours(n: number) {
 export default function Charts() {
   const today = new Date();
 
-  // View sliders
-  const [dailyOffsetDays, setDailyOffsetDays] = useState<number>(0); // -365..+365
-  const [monthOffset, setMonthOffset] = useState<number>(0);         // -24..+24
+  // Sliders (only move forward)
+  const [dailyOffsetDays, setDailyOffsetDays] = useState<number>(0); // 0..365
+  const [monthOffset, setMonthOffset] = useState<number>(0);         // 0..24
 
   const { data: labels = [] } = useSWR<Label[]>("/api/labels", api);
   const labelColor = (name: string) =>
@@ -131,7 +129,7 @@ export default function Charts() {
             </small>
             <input
               type="range"
-              min={-365}
+              min={0}
               max={365}
               value={dailyOffsetDays}
               onChange={(e) => setDailyOffsetDays(parseInt(e.target.value, 10))}
@@ -155,7 +153,7 @@ export default function Charts() {
           }}
           options={{
             scales: {
-              y: { min: 0, max: 16, ticks: { callback: (v) => `${v}h` } },
+              y: { min: 0, max: 15, ticks: { callback: (v) => `${v}h` } },
             },
             plugins: {
               tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
@@ -167,13 +165,13 @@ export default function Charts() {
       {/* MONTHLY */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <h2>
-            𝓜𝓸𝓷𝓽𝓱𝓵𝔂 — {format(monthStart, "MMM yyyy")}
+          <h2 className="plain-title">
+            𝓜𝓸𝓷𝓽𝓱𝓵𝔂 — {format(monthStart, "LLLL yyyy")}
           </h2>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <input
               type="range"
-              min={-24}
+              min={0}
               max={24}
               value={monthOffset}
               onChange={(e) => setMonthOffset(parseInt(e.target.value, 10))}
@@ -218,7 +216,7 @@ export default function Charts() {
 
       {/* TASK BREAKDOWN (viewed month) */}
       <div className="section card">
-        <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝑜𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
+        <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝓸𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
         <Bar
           data={{
             labels: tbLabels,
