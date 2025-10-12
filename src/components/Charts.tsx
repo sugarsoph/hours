@@ -120,7 +120,7 @@ export default function Charts() {
             scales: {
               y: {
                 min: 0,
-                max: 15, // ⬅️ was 12, now 15
+                max: 16, // 
                 ticks: { callback: (v) => `${v}h` },
               },
             },
