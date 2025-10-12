@@ -163,7 +163,7 @@ export default function Charts() {
         </div>
 
         {/* same visual height as others */}
-        <div style={{ position: "relative", height: 180 }}>
+        <div style={{ position: "relative", height: 400 }}>
           <Bar
             data={{
               labels: dailyLabels,
@@ -196,7 +196,7 @@ export default function Charts() {
         </div>
 
         {/* hard cap height to stop infinite scroll */}
-        <div style={{ position: "relative", height: 180, overflow: "hidden" }}>
+        <div style={{ position: "relative", height: 400, overflow: "hidden" }}>
           <Bar
             data={{
               labels: monthShorts,
@@ -240,7 +240,7 @@ export default function Charts() {
       {/* TASK BREAKDOWN */}
       <div className="section card">
         <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝑜𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
-        <div style={{ position: "relative", height: 200 }}>
+        <div style={{ position: "relative", height: 400 }}>
           <Bar
             data={{
               labels: tbLabels,
@@ -274,7 +274,7 @@ export default function Charts() {
       {/* OVERVIEW (pie) */}
       <div className="section card">
         <h2>𝒪𝓋𝑒𝓇𝓋𝒾𝑒𝔀</h2>
-        <div style={{ position: "relative", height: 200 }}>
+        <div style={{ position: "relative", height: 400 }}>
           <Pie
             data={{
               labels: overviewLabels,
