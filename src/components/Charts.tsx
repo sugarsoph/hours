@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import {
@@ -25,7 +25,7 @@ import {
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 type Entry = { id: string; day: string; label: string; minutes: number };
-type Label = { id: string; name: string; color_hex: string | null };
+type LabelRow = { id: string; name: string; color_hex: string | null };
 
 function hours(n: number) {
   return +(n / 60).toFixed(2);
@@ -34,15 +34,16 @@ function hours(n: number) {
 export default function Charts() {
   const today = new Date();
 
-  // Sliders (only move forward)
-  const [dailyOffsetDays, setDailyOffsetDays] = useState<number>(0); // 0..365
-  const [monthOffset, setMonthOffset] = useState<number>(0);         // 0..24
-
-  const { data: labels = [] } = useSWR<Label[]>("/api/labels", api);
+  // ──────────────────────────────────────────────────────────────────────────────
+  // LABELS (for colors)
+  const { data: labels = [] } = useSWR<LabelRow[]>("/api/labels", api);
   const labelColor = (name: string) =>
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
-  // DAILY (7-day window shifted by dailyOffsetDays)
+  // ──────────────────────────────────────────────────────────────────────────────
+  // DAILY (7-day window; slider only forward)
+  const [dailyOffsetDays, setDailyOffsetDays] = useState<number>(0); // 0..365
+
   const dailyEnd = addDays(today, dailyOffsetDays);
   const dailyStart = addDays(dailyEnd, -6);
 
@@ -65,10 +66,75 @@ export default function Charts() {
     hours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0)
   );
 
-  // MONTHLY (whole month shifted by monthOffset)
-  const monthAnchor = addMonths(today, monthOffset);
-  const monthStart = startOfMonth(monthAnchor);
-  const monthEnd = endOfMonth(monthAnchor);
+  // ──────────────────────────────────────────────────────────────────────────────
+  // MONTHLY (12 stacked bars by month, each bar stacked by label)
+  // Window: current month → next 11 months
+  const monthsWindow = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => startOfMonth(addMonths(today, i))),
+    [today]
+  );
+  const monthsLabels = monthsWindow.map((m) => format(m, "LLL")); // Oct, Nov, ...
+  const monthsStart = monthsWindow[0];
+  const monthsEnd = endOfMonth(addMonths(today, 11));
+
+  // Fetch entries for the whole 12-month window
+  const { data: windowEntries = [] } = useSWR<Entry[]>(
+    `/api/entries?from=${format(monthsStart, "yyyy-MM-dd")}&to=${format(
+      monthsEnd,
+      "yyyy-MM-dd"
+    )}`,
+    api
+  );
+
+  // Build list of labels that appear within the window (so the stack includes all)
+  const windowLabelSet = useMemo(() => {
+    const s = new Set<string>();
+    windowEntries.forEach((e) => s.add(e.label));
+    return Array.from(s);
+  }, [windowEntries]);
+
+  // For each label, compute an array of 12 monthly totals (in hours)
+  const stackedDatasets = useMemo(() => {
+    // Precompute month index for each entry (0..11 relative to monthsWindow[0])
+    const baseMonth = monthsWindow[0].getMonth();
+    const baseYear = monthsWindow[0].getFullYear();
+
+    // map: label -> number[12] minutes
+    const acc: Record<string, number[]> = {};
+    windowLabelSet.forEach((l) => (acc[l] = new Array(12).fill(0)));
+
+    windowEntries.forEach((e) => {
+      const d = new Date(e.day);
+      // compute offset months between base and this date
+      const offset =
+        (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
+      if (offset >= 0 && offset < 12) {
+        const arr = acc[e.label];
+        if (arr) arr[offset] += e.minutes;
+      }
+    });
+
+    // Convert to Chart.js datasets (hours + color)
+    return windowLabelSet.map((labelName) => ({
+      label: labelName,
+      data: acc[labelName].map((min) => hours(min)),
+      backgroundColor: labelColor(labelName),
+      borderWidth: 0,
+      stack: "months", // ensures stacking
+    }));
+  }, [windowEntries, windowLabelSet, monthsWindow, labelColor]);
+
+  // Show year range caption, e.g., "2025 — 2026"
+  const yearCaption = (() => {
+    const firstY = monthsWindow[0].getFullYear();
+    const lastY = monthsWindow[monthsWindow.length - 1].getFullYear();
+    return firstY === lastY ? String(firstY) : `${firstY} — ${lastY}`;
+  })();
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // TASK BREAKDOWN (current month totals by label, horizontal)
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
 
   const { data: monthEntries = [] } = useSWR<Entry[]>(
     `/api/entries?from=${format(monthStart, "yyyy-MM-dd")}&to=${format(
@@ -78,18 +144,6 @@ export default function Charts() {
     api
   );
 
-  const monthMap = new Map<string, number>();
-  monthEntries.forEach((e) => {
-    monthMap.set(e.day, (monthMap.get(e.day) || 0) + e.minutes);
-  });
-
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const monthLabels = monthDays.map((d) => format(d, "d"));
-  const monthData = monthDays.map((d) =>
-    hours(monthMap.get(format(d, "yyyy-MM-dd")) || 0)
-  );
-
-  // TASK BREAKDOWN (for viewed month)
   const byLabelMonth = new Map<string, number>();
   monthEntries.forEach((e) => {
     byLabelMonth.set(e.label, (byLabelMonth.get(e.label) || 0) + e.minutes);
@@ -98,7 +152,8 @@ export default function Charts() {
   const tbData = tbLabels.map((l) => hours(byLabelMonth.get(l) || 0));
   const tbColors = tbLabels.map((l) => labelColor(l));
 
-  // OVERVIEW (pie by label, year-to-date)
+  // ──────────────────────────────────────────────────────────────────────────────
+  // OVERVIEW PIE (year-to-date totals by label)
   const yStart = startOfYear(today);
   const yEnd = endOfYear(today);
   const { data: yearEntries = [] } = useSWR<Entry[]>(
@@ -153,7 +208,7 @@ export default function Charts() {
           }}
           options={{
             scales: {
-              y: { min: 0, max: 15, ticks: { callback: (v) => `${v}h` } },
+              y: { min: 0, max: 16, ticks: { callback: (v) => `${v}h` } }, // ⬅️ max 16
             },
             plugins: {
               tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
@@ -162,61 +217,46 @@ export default function Charts() {
         />
       </div>
 
-      {/* MONTHLY */}
+      {/* MONTHLY (12 stacked bars) */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <h2 className="plain-title">
-            𝓜𝓸𝓷𝓽𝓱𝓵𝔂 — {format(monthStart, "LLLL yyyy")}
-          </h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input
-              type="range"
-              min={0}
-              max={24}
-              value={monthOffset}
-              onChange={(e) => setMonthOffset(parseInt(e.target.value, 10))}
-              style={{ width: 180 }}
-              aria-label="Shift month"
-            />
-            <button
-              onClick={() => setMonthOffset(0)}
-              style={{ border: "none", background: "transparent", textDecoration: "underline", fontSize: 12, cursor: "pointer" }}
-              aria-label="Reset to this month"
-            >
-              Reset
-            </button>
-          </div>
+          <h2 className="plain-title">𝓜𝓸𝓷𝓽𝓱𝓵𝔂</h2>
+          <small>{yearCaption}</small>
         </div>
 
         <Bar
           data={{
-            labels: monthLabels,
-            datasets: [{ label: "Hours", data: monthData, backgroundColor: "#FFD7E2" }],
+            labels: monthsLabels, // Oct, Nov, ... for 12 months starting now
+            datasets: stackedDatasets, // stacked by label
           }}
           options={{
+            responsive: true,
+            maintainAspectRatio: false,
             scales: {
+              x: { stacked: true, grid: { display: true, lineWidth: 0.3 } },
               y: {
+                stacked: true,
                 beginAtZero: true,
                 min: 0,
-                max: 200,
+                max: 200, // overall monthly cap (stacked)
                 ticks: { callback: (v) => `${v}h` },
                 grid: { lineWidth: 0.3 },
               },
-              x: {
-                grid: { display: true, lineWidth: 0.3 },
-                ticks: { autoSkip: true },
-              },
             },
             plugins: {
-              tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
+              legend: { position: "bottom" },
+              tooltip: {
+                callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
+              },
             },
           }}
+          height={300}
         />
       </div>
 
-      {/* TASK BREAKDOWN (viewed month) */}
+      {/* TASK BREAKDOWN (current month) */}
       <div className="section card">
-        <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝓸𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
+        <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝑜𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
         <Bar
           data={{
             labels: tbLabels,
