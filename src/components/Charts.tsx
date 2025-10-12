@@ -188,36 +188,45 @@ export default function Charts() {
           <small>{yearCaption}</small>
         </div>
 
-        <Bar
-          data={{
-            labels: monthsLabels,
-            datasets: stackedDatasets,
-          }}
-          options={{
-            // keep default aspect ratio (no big height)
-            scales: {
-              x: {
-                stacked: true,
-                grid: { display: true, lineWidth: 0.3 },
-                ticks: { autoSkip: false }, // show all 12 month labels
-              },
-              y: {
-                stacked: true,
-                beginAtZero: true,
-                min: 0,
-                max: 200,
-                ticks: { stepSize: 10, callback: (v) => `${v}h` }, // ⬅️ steps of 10
-                grid: { lineWidth: 0.3 },
-              },
-            },
-            plugins: {
-              legend: { position: "bottom" },
-              tooltip: {
-                callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
-              },
-            },
-          }}
-        />
+      <Bar
+  height={220}                 // ← hard-limit the visual height
+  data={{
+    labels: monthsLabels,
+    datasets: stackedDatasets,
+  }}
+  options={{
+    maintainAspectRatio: false,   // ← respect the fixed height above
+    scales: {
+      x: {
+        stacked: true,
+        grid: { display: true, lineWidth: 0.3 },
+        ticks: { autoSkip: false }, // show all 12 months
+      },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        min: 0,
+        max: 200,
+        ticks: { stepSize: 10, callback: (v) => `${v}h` }, // 0–200 in tens
+        grid: { lineWidth: 0.3 },
+      },
+    },
+    plugins: {
+      legend: { position: "bottom", labels: { boxWidth: 10 } }, // small legend
+      tooltip: {
+        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
+      },
+    },
+    elements: {
+      bar: {
+        barPercentage: 0.7,
+        categoryPercentage: 0.7,
+        maxBarThickness: 28,
+      },
+    },
+  }}
+/>
+
       </div>
 
       {/* TASK BREAKDOWN (current month) */}
