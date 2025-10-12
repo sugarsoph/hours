@@ -63,7 +63,7 @@ export default function Charts() {
   );
   const monthShorts = months.map((m) => format(m, "LLL")); // Oct, Nov, ...
   const windowFrom = months[0];
-  const windowTo = endOfMonth(addMonths(today, 11));
+  const windowTo = endOfMonth(addMonths(today, 12));
 
   const { data: winEntries = [] } = useSWR<Entry[]>(
     `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(windowTo, "yyyy-MM-dd")}`,
