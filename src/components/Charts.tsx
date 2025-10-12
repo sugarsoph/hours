@@ -77,13 +77,13 @@ export default function Charts(){
       </div>
 
       <div className="section card">
-        <h2>Task Breakdown</h2>
+        <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝑜𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
         <Bar data={{ labels: tbLabels, datasets:[{ label:"Hours", data: tbData, backgroundColor: tbColors }] }}
              options={{ indexAxis:"y" as const, scales:{ x:{ beginAtZero:true, ticks:{ callback:(v)=>`${v}h`}}}, plugins:{ tooltip:{ callbacks:{ label:(ctx)=> `${ctx.formattedValue} h`}}}}} />
       </div>
 
       <div className="section card">
-        <h2>Yearly / Cumulative</h2>
+        <h2>𝒪𝓋𝑒𝓇𝓋𝒾𝑒𝓌</h2>
         <Bar data={{ labels:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
                      datasets:[{ label:"Hours", data:yData, backgroundColor:"#FFD7E2" }] }}
              options={{ scales:{ y:{ beginAtZero:true, ticks:{ callback:(v)=>`${v}h`}}}, plugins:{ tooltip:{ callbacks:{ label:(ctx)=> `${ctx.formattedValue} h`}}}}} />
