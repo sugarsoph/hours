@@ -78,7 +78,7 @@ export default function App(){
   return (
     <div className="app">
       <div className="header">
-        <div className="title">𝓜𝔂    𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷</div>
+        <div className="title">𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷</div>
       </div>
 
       <div className="top-grid">
