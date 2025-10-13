@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { api } from "./lib/api";
 import Charts from "./components/Charts";
 import LabelManager from "./components/LabelManager";
-import { format } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 
 type Entry = { id:string; day:string; label:string; minutes:number };
 type Label = { id:string; name:string; color_hex: string | null };
@@ -17,22 +17,36 @@ export default function App(){
     onError: (e)=>{ if((e as Error).message==="unauthorized") setAuthNeeded(true); }
   });
 
+  // NEW: selected day (defaults to today)
+  const todayISO = format(new Date(), "yyyy-MM-dd");
+  const [dayISO, setDayISO] = useState<string>(todayISO);
+
   const [label, setLabel] = useState("");
   const [minutes, setMinutes] = useState<number>(0);
   const [showLM, setShowLM] = useState(false);
 
-  const todayISO = format(new Date(), "yyyy-MM-dd");
-  const { data: entries = [] } = useSWR<Entry[]>(`/api/entries?from=${todayISO}&to=${todayISO}`, api);
-  const { data: recent = [] } = useSWR<Entry[]>(`/api/entries?from=${format(new Date(Date.now()-1000*60*60*24*14), "yyyy-MM-dd")}&to=${todayISO}`, api);
+  // Entries & totals for the selected day
+  const { data: entries = [] } = useSWR<Entry[]>(
+    `/api/entries?from=${dayISO}&to=${dayISO}`, api
+  );
 
-  const totalToday = entries.reduce((s,e)=> s + e.minutes, 0);
+  // Recent list: last 14 days up to selected day
+  const recentStartISO = format(addDays(parseISO(dayISO), -14), "yyyy-MM-dd");
+  const { data: recent = [] } = useSWR<Entry[]>(
+    `/api/entries?from=${recentStartISO}&to=${dayISO}`, api
+  );
+
+  const totalSelectedDay = entries.reduce((s,e)=> s + e.minutes, 0);
 
   const save = async()=>{
     if(!label || minutes < 0) return;
-    await api("/api/entries", { method:"POST", body: JSON.stringify({ day: todayISO, label, minutes }) });
+    await api("/api/entries", {
+      method:"POST",
+      body: JSON.stringify({ day: dayISO, label, minutes })
+    });
     setMinutes(0);
     await Promise.all([
-      mutate(`/api/entries?from=${todayISO}&to=${todayISO}`),
+      mutate(`/api/entries?from=${dayISO}&to=${dayISO}`),
       mutate((key)=> typeof key==="string" && key.startsWith("/api/entries") ),
       mutate("/api/labels")
     ]);
@@ -83,33 +97,59 @@ export default function App(){
 
       <div className="top-grid">
         <div className="card">
-          <div className="input-row">
-            <div style={{flex:2}}>
-             <label style={{ marginRight: "12px" }}>Label</label>
-              <input list="labels" placeholder="˚ ༘ ೀ⋆｡˚" value={label} onChange={e=> setLabel(e.target.value)} />
+          <div className="input-row" style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+            {/* NEW: Date picker */}
+            <div style={{flex:"0 0 auto"}}>
+              <label style={{ marginRight: "10px" }}>Date</label>
+              <input
+                type="date"
+                value={dayISO}
+                onChange={e=> setDayISO(e.target.value)}
+              />
+            </div>
+
+            <div style={{flex:"1 1 260px"}}>
+              <label style={{ marginRight: "12px" }}>Label</label>
+              <input
+                list="labels"
+                placeholder="˚ ༘ ೀ⋆｡˚"
+                value={label}
+                onChange={e=> setLabel(e.target.value)}
+              />
               <datalist id="labels">
                 {labels.map(l=> <option key={l.id} value={l.name} />)}
               </datalist>
             </div>
-            <div style={{flex:1}}>
-              <label>Minutes</label>
-              <input type="number" min={0} value={minutes} onChange={e=> setMinutes(parseInt(e.target.value||"0"))} />
+
+            <div style={{flex:"0 0 160px"}}>
+              <label style={{ marginRight: "8px" }}>Minutes</label>
+              <input
+                type="number"
+                min={0}
+                value={Number.isFinite(minutes) ? minutes : 0}
+                onChange={e=> setMinutes(parseInt(e.target.value || "0") || 0)}
+              />
             </div>
-            <div>
+
+            <div style={{flex:"0 0 auto"}}>
               <button className="button" onClick={save}>Save</button>
             </div>
-            <div>
+
+            <div style={{flex:"0 0 auto"}}>
               <button className="action-btn" title="Manage Labels" onClick={()=> setShowLM(true)}>🏷️</button>
             </div>
           </div>
-          <div className="total">Total today: {toHours(totalToday)} h</div>
+
+          <div className="total">
+            Total on {format(parseISO(dayISO), "MMM d")}: {toHours(totalSelectedDay)} h
+          </div>
 
           <div className="table">
             {recent.map(e=> (
               <div className="entry-row" key={e.id}>
                 <div>{e.day}</div>
                 <div>{editingId===e.id? <input value={editLabel} onChange={ev=> setEditLabel(ev.target.value)} /> : e.label}</div>
-                <div>{editingId===e.id? <input type="number" min={0} value={editMinutes} onChange={ev=> setEditMinutes(parseInt(ev.target.value||"0"))} /> : `${e.minutes} min`}</div>
+                <div>{editingId===e.id? <input type="number" min={0} value={editMinutes} onChange={ev=> setEditMinutes(parseInt(ev.target.value||"0") || 0)} /> : `${e.minutes} min`}</div>
                 <div style={{display:"flex", gap:6, justifyContent:"flex-end"}}>
                   {editingId===e.id? (
                     <>
@@ -129,9 +169,14 @@ export default function App(){
         </div>
 
         <div className="sticky">
-          <textarea placeholder="Note" value={note} onChange={e=> setNote(e.target.value)} onBlur={()=>{
-            api("/api/sticky-note", { method:"PUT", body: JSON.stringify({ content: note }) }).catch(()=>{});
-          }} />
+          <textarea
+            placeholder="Note"
+            value={note}
+            onChange={e=> setNote(e.target.value)}
+            onBlur={()=>{
+              api("/api/sticky-note", { method:"PUT", body: JSON.stringify({ content: note }) }).catch(()=>{});
+            }}
+          />
         </div>
       </div>
 
@@ -172,3 +217,4 @@ function PasswordModal({ onAuthed }:{ onAuthed: ()=>void }){
     </div>
   );
 }
+
