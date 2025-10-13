@@ -1,3 +1,4 @@
+// api/_utils/auth.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import cookie from "cookie";
 
@@ -8,13 +9,14 @@ export function assertAuth(req: VercelRequest, res: VercelResponse){
   throw new Error("halt");
 }
 
-export function setSessionCookie(res: VercelResponse){
+export function setSessionCookie(req: VercelRequest, res: VercelResponse){
+  const isLocal = (req.headers.host || "").includes("localhost") || process.env.NODE_ENV === "development";
   const serialized = cookie.serialize("session", "ok", {
     httpOnly: true,
-    secure: true,
+    secure: !isLocal,      // local dev: false; Vercel prod: true
     sameSite: "lax",
     path: "/",
-    maxAge: 31536000 // 1 year
+    maxAge: 31536000       // 1 year
   });
   res.setHeader("Set-Cookie", serialized);
 }
