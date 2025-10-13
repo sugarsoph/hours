@@ -85,8 +85,8 @@ export default function App(){
         <div className="card">
           <div className="input-row">
             <div style={{flex:2}}>
-              <label>Label</label>
-              <input list="labels" placeholder="e.g., Reading" value={label} onChange={e=> setLabel(e.target.value)} />
+             <label style={{ marginRight: "12px" }}>Label</label>
+              <input list="labels" placeholder="˚ ༘ ೀ⋆｡˚" value={label} onChange={e=> setLabel(e.target.value)} />
               <datalist id="labels">
                 {labels.map(l=> <option key={l.id} value={l.name} />)}
               </datalist>
