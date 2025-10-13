@@ -40,10 +40,8 @@ export default function Charts() {
   const colorFor = (name: string) =>
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
-  // ───────────────────────────────────────────────────────────────
-  // DAILY (7-day window, inclusive) — include weekday in labels; taller; no blank padding
-  // ───────────────────────────────────────────────────────────────
-  const [dailyOffsetDays, setDailyOffsetDays] = useState(0); // 0..365
+  // DAILY (7-day window)
+  const [dailyOffsetDays, setDailyOffsetDays] = useState(0);
   const dailyEnd = addDays(today, dailyOffsetDays);
   const dailyStart = addDays(dailyEnd, -6);
 
@@ -54,20 +52,23 @@ export default function Charts() {
   daily.forEach((e) => dailyMap.set(e.day, (dailyMap.get(e.day) || 0) + e.minutes));
 
   const dailyDays = eachDayOfInterval({ start: dailyStart, end: dailyEnd });
-  const dailyLabels = dailyDays.map((d) => `${format(d, "EEE")} ${format(d, "d")}`); // e.g., Mon 13
+
+  // Weekday abbreviations with period
+  const weekday = (d: Date) => {
+    const abbr = format(d, "EEE"); // Mon, Tue, Wed...
+    return abbr.length > 3 ? `${abbr.slice(0, 3)}.` : `${abbr}.`;
+  };
+  const dailyLabels = dailyDays.map((d) => `${weekday(d)} ${format(d, "d")}`);
   const dailyData = dailyDays.map((d) => toHours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0));
 
-  // ───────────────────────────────────────────────────────────────
-  // MONTHLY (13 stacked bars starting this month; stacked by label)
-  // Last bar is ALWAYS October when starting in October (today → Oct … Oct+12)
-  // ───────────────────────────────────────────────────────────────
+  // MONTHLY (13 months, stacked by label)
   const months = useMemo(
     () => Array.from({ length: 13 }, (_, i) => startOfMonth(addMonths(today, i))),
     [today]
   );
-  const monthShorts = months.map((m) => format(m, "LLL")); // Oct, Nov, ...
+  const monthShorts = months.map((m) => format(m, "LLL"));
   const windowFrom = months[0];
-  const windowTo = endOfMonth(addMonths(today, 12)); // inclusive through month+12 (13 months)
+  const windowTo = endOfMonth(addMonths(today, 12));
 
   const winKey = `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(windowTo, "yyyy-MM-dd")}`;
   const { data: winEntries = [] } = useSWR<Entry[]>(winKey, api);
@@ -84,7 +85,7 @@ export default function Charts() {
     const baseYear = base.getFullYear();
 
     const acc: Record<string, number[]> = {};
-    labelNames.forEach((l) => (acc[l] = new Array(13).fill(0))); // 13 months
+    labelNames.forEach((l) => (acc[l] = new Array(13).fill(0)));
 
     winEntries.forEach((e) => {
       const d = new Date(e.day);
@@ -98,7 +99,6 @@ export default function Charts() {
       backgroundColor: colorFor(name),
       borderWidth: 0,
       stack: "months",
-      // fill the box more (but still breathable)
       barPercentage: 0.9,
       categoryPercentage: 0.9,
       maxBarThickness: 30,
@@ -111,9 +111,7 @@ export default function Charts() {
     return firstY === lastY ? String(firstY) : `${firstY} — ${lastY}`;
   })();
 
-  // ───────────────────────────────────────────────────────────────
-  // TASK BREAKDOWN (current month totals by label) — taller; flush grid
-  // ───────────────────────────────────────────────────────────────
+  // TASK BREAKDOWN
   const mStart = startOfMonth(today);
   const mEnd = endOfMonth(today);
   const monthKey = `/api/entries?from=${format(mStart, "yyyy-MM-dd")}&to=${format(mEnd, "yyyy-MM-dd")}`;
@@ -127,9 +125,7 @@ export default function Charts() {
   const tbData = tbLabels.map((l) => toHours(byLabelMonth.get(l) || 0));
   const tbColors = tbLabels.map(colorFor);
 
-  // ───────────────────────────────────────────────────────────────
-  // OVERVIEW (pie, YTD totals by label) — taller to match
-  // ───────────────────────────────────────────────────────────────
+  // OVERVIEW
   const yStart = startOfYear(today);
   const yEnd = endOfYear(today);
   const yearKey = `/api/entries?from=${format(yStart, "yyyy-MM-dd")}&to=${format(yEnd, "yyyy-MM-dd")}`;
@@ -143,18 +139,13 @@ export default function Charts() {
   const overviewData = overviewLabels.map((l) => toHours(byLabelYear.get(l) || 0));
   const overviewColors = overviewLabels.map(colorFor);
 
-  // click-to-select states + refs
+  // state + refs
   const [dailySelected, setDailySelected] = useState<string | null>(null);
   const [monthlySelected, setMonthlySelected] = useState<string | null>(null);
   const [tbSelected, setTbSelected] = useState<string | null>(null);
 
-  const dailyRef = useRef<any>(null);
-  const monthlyRef = useRef<any>(null);
-  const tbRef = useRef<any>(null);
-
   const fmtH = (n: number) => `${n.toFixed(2)} h`;
 
-  // common "fill the box" chart options pieces
   const fillBox = {
     responsive: true,
     maintainAspectRatio: false,
@@ -196,7 +187,6 @@ export default function Charts() {
 
         <div style={{ position: "relative", height: 460 }}>
           <Bar
-            ref={dailyRef}
             data={{
               labels: dailyLabels,
               datasets: [{ label: "Hours", data: dailyData, backgroundColor: "#FFD7E2" }],
@@ -231,7 +221,7 @@ export default function Charts() {
         {dailySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {dailySelected}</div>}
       </div>
 
-      {/* MONTHLY — 13 stacked bars, flush to edges, taller */}
+      {/* MONTHLY */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h2 className="plain-title">𝓜𝓸𝓷𝓽𝓱𝓵𝔂</h2>
@@ -240,7 +230,6 @@ export default function Charts() {
 
         <div style={{ position: "relative", height: 460, overflow: "hidden" }}>
           <Bar
-            ref={monthlyRef}
             data={{
               labels: monthShorts,
               datasets: stackedDatasets,
@@ -258,7 +247,6 @@ export default function Charts() {
                   stacked: true,
                   beginAtZero: true,
                   grace: 0,
-                  min: 0,
                   grid: { lineWidth: 0.3, drawBorder: false },
                   ticks: { callback: (v) => `${v}h` },
                 },
@@ -268,7 +256,6 @@ export default function Charts() {
               },
               plugins: {
                 ...fillBox.plugins,
-                legend: { position: "bottom", labels: { boxWidth: 10 } },
                 tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` } },
               },
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
@@ -285,12 +272,11 @@ export default function Charts() {
         {monthlySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {monthlySelected}</div>}
       </div>
 
-      {/* TASK BREAKDOWN — taller, flush grid */}
+      {/* TASK BREAKDOWN */}
       <div className="section card">
         <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝓸𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
         <div style={{ position: "relative", height: 620 }}>
           <Bar
-            ref={tbRef}
             data={{
               labels: tbLabels,
               datasets: [{ label: "Hours", data: tbData, backgroundColor: tbColors.length ? tbColors : "#FFD7E2" }],
@@ -305,14 +291,9 @@ export default function Charts() {
                   grid: { lineWidth: 0.3, drawBorder: false },
                   ticks: { callback: (v) => `${v}h` },
                 },
-                y: {
-                  grid: { drawBorder: false, lineWidth: 0.3 },
-                },
+                y: { grid: { drawBorder: false, lineWidth: 0.3 } },
               },
-              plugins: {
-                ...fillBox.plugins,
-                legend: { display: false },
-              },
+              plugins: { ...fillBox.plugins, legend: { display: false } },
               elements: { bar: { barPercentage: 0.9, categoryPercentage: 0.9 } },
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
                 if (!els.length) { setTbSelected(null); return; }
@@ -327,7 +308,7 @@ export default function Charts() {
         {tbSelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {tbSelected}</div>}
       </div>
 
-      {/* OVERVIEW (pie) — taller */}
+      {/* OVERVIEW */}
       <div className="section card">
         <h2>𝒪𝓋𝑒𝓇𝓋𝒾𝑒𝔀</h2>
         <div style={{ position: "relative", height: 620 }}>
@@ -359,3 +340,4 @@ export default function Charts() {
     </div>
   );
 }
+
