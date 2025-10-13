@@ -1,5 +1,5 @@
 // src/components/Charts.tsx
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import {
@@ -17,12 +17,14 @@ import { Bar, Pie } from "react-chartjs-2";
 import {
   addDays,
   addMonths,
+  addWeeks,
   format,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
   startOfYear,
   endOfYear,
+  startOfWeek,
 } from "date-fns";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
@@ -40,10 +42,14 @@ export default function Charts() {
   const colorFor = (name: string) =>
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
-  // DAILY (7-day window)
-  const [dailyOffsetDays, setDailyOffsetDays] = useState(0);
-  const dailyEnd = addDays(today, dailyOffsetDays);
-  const dailyStart = addDays(dailyEnd, -6);
+  // ───────────────────────────────────────────────────────────────
+  // DAILY (always a Mon→Sun week, inclusive). Default shows THIS week.
+  // Use a week-offset slider (in whole weeks). 0 = current week, -1 = last week, +1 = next week.
+  // ───────────────────────────────────────────────────────────────
+  const [weekOffset, setWeekOffset] = useState(0); // whole weeks
+  const baseWeekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
+  const dailyStart = addWeeks(baseWeekStart, weekOffset);
+  const dailyEnd = addDays(dailyStart, 6); // Sunday
 
   const dailyKey = `/api/entries?from=${format(dailyStart, "yyyy-MM-dd")}&to=${format(dailyEnd, "yyyy-MM-dd")}`;
   const { data: daily = [] } = useSWR<Entry[]>(dailyKey, api);
@@ -53,7 +59,7 @@ export default function Charts() {
 
   const dailyDays = eachDayOfInterval({ start: dailyStart, end: dailyEnd });
 
-  // Weekday abbreviations with period
+  // Weekday abbreviations with period (Mon., Tue., …)
   const weekday = (d: Date) => {
     const abbr = format(d, "EEE"); // Mon, Tue, Wed...
     return abbr.length > 3 ? `${abbr.slice(0, 3)}.` : `${abbr}.`;
@@ -61,14 +67,17 @@ export default function Charts() {
   const dailyLabels = dailyDays.map((d) => `${weekday(d)} ${format(d, "d")}`);
   const dailyData = dailyDays.map((d) => toHours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0));
 
-  // MONTHLY (13 months, stacked by label)
+  // ───────────────────────────────────────────────────────────────
+  // MONTHLY (13 stacked bars starting this month; stacked by label)
+  // e.g., if today is Oct 2025 → bars: Oct 2025 ... Oct 2026 (13 total)
+  // ───────────────────────────────────────────────────────────────
   const months = useMemo(
     () => Array.from({ length: 13 }, (_, i) => startOfMonth(addMonths(today, i))),
     [today]
   );
   const monthShorts = months.map((m) => format(m, "LLL"));
   const windowFrom = months[0];
-  const windowTo = endOfMonth(addMonths(today, 12));
+  const windowTo = endOfMonth(addMonths(today, 12)); // inclusive through month+12
 
   const winKey = `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(windowTo, "yyyy-MM-dd")}`;
   const { data: winEntries = [] } = useSWR<Entry[]>(winKey, api);
@@ -85,12 +94,12 @@ export default function Charts() {
     const baseYear = base.getFullYear();
 
     const acc: Record<string, number[]> = {};
-    labelNames.forEach((l) => (acc[l] = new Array(13).fill(0)));
+    labelNames.forEach((l) => (acc[l] = new Array(13).fill(0))); // 13 months
 
     winEntries.forEach((e) => {
       const d = new Date(e.day);
       const offset = (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
-      if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes;
+      if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes; // < 13
     });
 
     return labelNames.map((name) => ({
@@ -111,7 +120,9 @@ export default function Charts() {
     return firstY === lastY ? String(firstY) : `${firstY} — ${lastY}`;
   })();
 
-  // TASK BREAKDOWN
+  // ───────────────────────────────────────────────────────────────
+  // TASK BREAKDOWN (current month totals by label)
+  // ───────────────────────────────────────────────────────────────
   const mStart = startOfMonth(today);
   const mEnd = endOfMonth(today);
   const monthKey = `/api/entries?from=${format(mStart, "yyyy-MM-dd")}&to=${format(mEnd, "yyyy-MM-dd")}`;
@@ -125,7 +136,9 @@ export default function Charts() {
   const tbData = tbLabels.map((l) => toHours(byLabelMonth.get(l) || 0));
   const tbColors = tbLabels.map(colorFor);
 
-  // OVERVIEW
+  // ───────────────────────────────────────────────────────────────
+  // OVERVIEW (pie, YTD totals by label)
+  // ───────────────────────────────────────────────────────────────
   const yStart = startOfYear(today);
   const yEnd = endOfYear(today);
   const yearKey = `/api/entries?from=${format(yStart, "yyyy-MM-dd")}&to=${format(yEnd, "yyyy-MM-dd")}`;
@@ -139,13 +152,14 @@ export default function Charts() {
   const overviewData = overviewLabels.map((l) => toHours(byLabelYear.get(l) || 0));
   const overviewColors = overviewLabels.map(colorFor);
 
-  // state + refs
+  // selections
   const [dailySelected, setDailySelected] = useState<string | null>(null);
   const [monthlySelected, setMonthlySelected] = useState<string | null>(null);
   const [tbSelected, setTbSelected] = useState<string | null>(null);
 
   const fmtH = (n: number) => `${n.toFixed(2)} h`;
 
+  // common "fill the box" options
   const fillBox = {
     responsive: true,
     maintainAspectRatio: false,
@@ -158,7 +172,7 @@ export default function Charts() {
 
   return (
     <div>
-      {/* DAILY */}
+      {/* DAILY — week-aligned Mon→Sun */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h2>𝓓𝓪𝓲𝓵𝔂</h2>
@@ -168,19 +182,21 @@ export default function Charts() {
             </small>
             <input
               type="range"
-              min={0}
-              max={365}
-              value={dailyOffsetDays}
-              onChange={(e) => setDailyOffsetDays(parseInt(e.target.value, 10))}
-              style={{ width: 200 }}
-              aria-label="Shift daily window"
+              min={-52}
+              max={52}
+              step={1}
+              value={weekOffset}
+              onChange={(e) => setWeekOffset(parseInt(e.target.value, 10))}
+              style={{ width: 220 }}
+              aria-label="Shift week window"
+              title="Move by whole weeks"
             />
             <button
-              onClick={() => setDailyOffsetDays(0)}
+              onClick={() => setWeekOffset(0)}
               style={{ border: "none", background: "transparent", textDecoration: "underline", fontSize: 12, cursor: "pointer" }}
-              aria-label="Reset to today"
+              aria-label="Reset to current week"
             >
-              Reset
+              This week
             </button>
           </div>
         </div>
@@ -221,7 +237,7 @@ export default function Charts() {
         {dailySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {dailySelected}</div>}
       </div>
 
-      {/* MONTHLY */}
+      {/* MONTHLY — 13 stacked bars */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h2 className="plain-title">𝓜𝓸𝓷𝓽𝓱𝓵𝔂</h2>
@@ -340,4 +356,3 @@ export default function Charts() {
     </div>
   );
 }
-
