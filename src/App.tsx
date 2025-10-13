@@ -17,7 +17,7 @@ export default function App(){
     onError: (e)=>{ if((e as Error).message==="unauthorized") setAuthNeeded(true); }
   });
 
-  // NEW: selected day (defaults to today)
+  // Selected day (defaults to today)
   const todayISO = format(new Date(), "yyyy-MM-dd");
   const [dayISO, setDayISO] = useState<string>(todayISO);
 
@@ -97,50 +97,72 @@ export default function App(){
 
       <div className="top-grid">
         <div className="card">
-          <div className="input-row" style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
-            {/* NEW: Date picker */}
-            <div style={{flex:"0 0 auto"}}>
-              <label style={{ marginRight: "10px" }}>Date</label>
+          {/* Simple layout: fields stacked left, actions in a right column */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(280px, 1fr) auto",
+              columnGap: 16,
+              rowGap: 12,
+              alignItems: "end",
+            }}
+          >
+            {/* Date */}
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>Date</label>
               <input
                 type="date"
                 value={dayISO}
-                onChange={e=> setDayISO(e.target.value)}
+                onChange={(e) => setDayISO(e.target.value)}
+                style={{ width: "100%" }}
               />
             </div>
 
-            <div style={{flex:"1 1 260px"}}>
-              <label style={{ marginRight: "12px" }}>Label</label>
+            {/* Actions (Log & Label Manager) — stays to the right of all three fields */}
+            <div style={{ gridRow: "1 / span 3", alignSelf: "start", display: "flex", gap: 10 }}>
+              <button className="button" onClick={save}>Log</button>
+              <button
+                className="action-btn"
+                title="Manage Labels"
+                onClick={() => setShowLM(true)}
+                aria-label="Manage labels"
+              >
+                🏷️
+              </button>
+            </div>
+
+            {/* Label */}
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>Label</label>
               <input
                 list="labels"
                 placeholder="˚ ༘ ೀ⋆｡˚"
                 value={label}
-                onChange={e=> setLabel(e.target.value)}
+                onChange={(e) => setLabel(e.target.value)}
+                style={{ width: "100%" }}
               />
               <datalist id="labels">
-                {labels.map(l=> <option key={l.id} value={l.name} />)}
+                {labels.map((l) => (
+                  <option key={l.id} value={l.name} />
+                ))}
               </datalist>
             </div>
 
-            <div style={{flex:"0 0 160px"}}>
-              <label style={{ marginRight: "8px" }}>Minutes</label>
+            {/* Minutes */}
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>Minutes</label>
               <input
                 type="number"
                 min={0}
                 value={Number.isFinite(minutes) ? minutes : 0}
-                onChange={e=> setMinutes(parseInt(e.target.value || "0") || 0)}
+                onChange={(e) => setMinutes(parseInt(e.target.value || "0") || 0)}
+                style={{ width: "100%" }}
               />
-            </div>
-
-            <div style={{flex:"0 0 auto"}}>
-              <button className="button" onClick={save}>Save</button>
-            </div>
-
-            <div style={{flex:"0 0 auto"}}>
-              <button className="action-btn" title="Manage Labels" onClick={()=> setShowLM(true)}>🏷️</button>
             </div>
           </div>
 
-          <div className="total">
+          {/* Total under everything */}
+          <div className="total" style={{ marginTop: 12 }}>
             Total on {format(parseISO(dayISO), "MMM d")}: {toHours(totalSelectedDay)} h
           </div>
 
@@ -217,4 +239,3 @@ function PasswordModal({ onAuthed }:{ onAuthed: ()=>void }){
     </div>
   );
 }
-
