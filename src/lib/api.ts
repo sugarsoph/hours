@@ -1,18 +1,16 @@
+// src/lib/api.ts
 export async function api(path: string, init?: RequestInit) {
   const res = await fetch(path, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {})
-    },
-    credentials: "include"
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    credentials: "include", // ← IMPORTANT: send cookies on every call
   });
+
   if (res.status === 401) throw new Error("unauthorized");
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `API error ${res.status}`);
+    throw new Error((await res.text()) || `API error ${res.status}`);
   }
+
   const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return res.json();
-  return res.text();
+  return ct.includes("application/json") ? res.json() : res.text();
 }
