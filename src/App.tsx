@@ -191,34 +191,36 @@ export default function App(){
           </div>
         </div>
 
-        {/* Sticky area now shows your image from /public/pic.jpg */}
+            {/* Sticky area now shows your image from /public/pic.jpg */}
         <div
-  className="sticky"
-  style={{
-    borderRadius: 12,
-    overflow: "hidden",
-    background: "none",  // no background color at all
-    boxShadow: "none"    // in case you had any card shadows
-  }}
->
-  <img
-    src="/pic.jpg"
-    alt="Sticky"
-    style={{
-      width: "100%",
-      height: "100%",
-      objectFit: "cover",
-      display: "block"
-    }}
-  />
-</div>
+          className="sticky"
+          style={{
+            borderRadius: 12,
+            overflow: "hidden",
+            background: "none", // no background color at all
+            boxShadow: "none",  // in case you had any card shadows
+          }}
+        >
+          <img
+            src="/pic.jpg"
+            alt="Sticky"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        </div>
+
+      {/* ✅ CLOSE .top-grid here */}
+      </div>
 
       <Charts />
 
       <div className="footer">Let's see how you do it. ♡</div>
 
       <LabelManager open={showLM} onClose={()=> setShowLM(false)} />
-
       {authNeeded && <PasswordModal onAuthed={()=> setAuthNeeded(false)} />}
     </div>
   );
