@@ -41,7 +41,7 @@ export default function Charts() {
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
   // ───────────────────────────────────────────────────────────────
-  // DAILY (7-day window, inclusive)
+  // DAILY (7-day window, inclusive) — include weekday in labels; taller; no blank padding
   // ───────────────────────────────────────────────────────────────
   const [dailyOffsetDays, setDailyOffsetDays] = useState(0); // 0..365
   const dailyEnd = addDays(today, dailyOffsetDays);
@@ -54,20 +54,20 @@ export default function Charts() {
   daily.forEach((e) => dailyMap.set(e.day, (dailyMap.get(e.day) || 0) + e.minutes));
 
   const dailyDays = eachDayOfInterval({ start: dailyStart, end: dailyEnd });
-  const dailyLabels = dailyDays.map((d) => format(d, "MMM d"));
+  const dailyLabels = dailyDays.map((d) => `${format(d, "EEE")} ${format(d, "d")}`); // e.g., Mon 13
   const dailyData = dailyDays.map((d) => toHours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0));
 
   // ───────────────────────────────────────────────────────────────
   // MONTHLY (13 stacked bars starting this month; stacked by label)
-  // e.g., if today is Oct 2025 → bars: Oct 2025 ... Oct 2026 (13 total)
+  // Last bar is ALWAYS October when starting in October (today → Oct … Oct+12)
   // ───────────────────────────────────────────────────────────────
   const months = useMemo(
     () => Array.from({ length: 13 }, (_, i) => startOfMonth(addMonths(today, i))),
     [today]
   );
-  const monthShorts = months.map((m) => format(m, "LLL"));
+  const monthShorts = months.map((m) => format(m, "LLL")); // Oct, Nov, ...
   const windowFrom = months[0];
-  const windowTo = endOfMonth(addMonths(today, 12)); // inclusive through month+12
+  const windowTo = endOfMonth(addMonths(today, 12)); // inclusive through month+12 (13 months)
 
   const winKey = `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(windowTo, "yyyy-MM-dd")}`;
   const { data: winEntries = [] } = useSWR<Entry[]>(winKey, api);
@@ -89,7 +89,7 @@ export default function Charts() {
     winEntries.forEach((e) => {
       const d = new Date(e.day);
       const offset = (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
-      if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes; // < 13
+      if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes;
     });
 
     return labelNames.map((name) => ({
@@ -98,9 +98,10 @@ export default function Charts() {
       backgroundColor: colorFor(name),
       borderWidth: 0,
       stack: "months",
-      barPercentage: 0.65,
-      categoryPercentage: 0.65,
-      maxBarThickness: 26,
+      // fill the box more (but still breathable)
+      barPercentage: 0.9,
+      categoryPercentage: 0.9,
+      maxBarThickness: 30,
     }));
   }, [winEntries, labelNames, months]);
 
@@ -111,7 +112,7 @@ export default function Charts() {
   })();
 
   // ───────────────────────────────────────────────────────────────
-  // TASK BREAKDOWN (current month totals by label)
+  // TASK BREAKDOWN (current month totals by label) — taller; flush grid
   // ───────────────────────────────────────────────────────────────
   const mStart = startOfMonth(today);
   const mEnd = endOfMonth(today);
@@ -127,7 +128,7 @@ export default function Charts() {
   const tbColors = tbLabels.map(colorFor);
 
   // ───────────────────────────────────────────────────────────────
-  // OVERVIEW (pie, YTD totals by label)
+  // OVERVIEW (pie, YTD totals by label) — taller to match
   // ───────────────────────────────────────────────────────────────
   const yStart = startOfYear(today);
   const yEnd = endOfYear(today);
@@ -153,6 +154,17 @@ export default function Charts() {
 
   const fmtH = (n: number) => `${n.toFixed(2)} h`;
 
+  // common "fill the box" chart options pieces
+  const fillBox = {
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: { padding: 0 as const },
+    plugins: {
+      legend: { position: "bottom" as const, labels: { boxWidth: 10 } },
+      tooltip: { callbacks: { label: (ctx: any) => `${ctx.formattedValue} h` } },
+    },
+  };
+
   return (
     <div>
       {/* DAILY */}
@@ -169,7 +181,7 @@ export default function Charts() {
               max={365}
               value={dailyOffsetDays}
               onChange={(e) => setDailyOffsetDays(parseInt(e.target.value, 10))}
-              style={{ width: 180 }}
+              style={{ width: 200 }}
               aria-label="Shift daily window"
             />
             <button
@@ -182,7 +194,7 @@ export default function Charts() {
           </div>
         </div>
 
-        <div style={{ position: "relative", height: 360 }}>
+        <div style={{ position: "relative", height: 460 }}>
           <Bar
             ref={dailyRef}
             data={{
@@ -190,15 +202,22 @@ export default function Charts() {
               datasets: [{ label: "Hours", data: dailyData, backgroundColor: "#FFD7E2" }],
             }}
             options={{
-              responsive: true,
-              maintainAspectRatio: false,
+              ...fillBox,
               scales: {
-                y: { min: 0, max: 16, ticks: { stepSize: 2, callback: (v) => `${v}h` } },
+                x: {
+                  offset: false,
+                  grid: { drawBorder: false, lineWidth: 0.3 },
+                  ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 },
+                },
+                y: {
+                  beginAtZero: true,
+                  grace: 0,
+                  grid: { drawBorder: false, lineWidth: 0.3 },
+                  ticks: { callback: (v) => `${v}h` },
+                },
               },
-              plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
-              },
+              elements: { bar: { barPercentage: 0.9, categoryPercentage: 0.9 } },
+              plugins: { legend: { display: false } },
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
                 if (!els.length) { setDailySelected(null); return; }
                 const { index } = els[0];
@@ -212,14 +231,14 @@ export default function Charts() {
         {dailySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {dailySelected}</div>}
       </div>
 
-      {/* MONTHLY — 13 stacked bars */}
+      {/* MONTHLY — 13 stacked bars, flush to edges, taller */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h2 className="plain-title">𝓜𝓸𝓷𝓽𝓱𝓵𝔂</h2>
           <small>{yearCaption}</small>
         </div>
 
-        <div style={{ position: "relative", height: 360, overflow: "hidden" }}>
+        <div style={{ position: "relative", height: 460, overflow: "hidden" }}>
           <Bar
             ref={monthlyRef}
             data={{
@@ -227,31 +246,30 @@ export default function Charts() {
               datasets: stackedDatasets,
             }}
             options={{
-              responsive: true,
-              maintainAspectRatio: false,
+              ...fillBox,
               scales: {
                 x: {
                   stacked: true,
-                  grid: { display: true, lineWidth: 0.3 },
+                  offset: false,
+                  grid: { display: true, lineWidth: 0.3, drawBorder: false },
                   ticks: { autoSkip: false },
                 },
                 y: {
                   stacked: true,
                   beginAtZero: true,
+                  grace: 0,
                   min: 0,
-                  max: 200,
-                  ticks: { stepSize: 10, callback: (v) => `${v}h` },
-                  grid: { lineWidth: 0.3 },
-                },
-              },
-              plugins: {
-                legend: { position: "bottom", labels: { boxWidth: 10 } },
-                tooltip: {
-                  callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
+                  grid: { lineWidth: 0.3, drawBorder: false },
+                  ticks: { callback: (v) => `${v}h` },
                 },
               },
               elements: {
-                bar: { barPercentage: 0.65, categoryPercentage: 0.65, borderWidth: 0, maxBarThickness: 26 },
+                bar: { barPercentage: 0.9, categoryPercentage: 0.9, borderWidth: 0, maxBarThickness: 30 },
+              },
+              plugins: {
+                ...fillBox.plugins,
+                legend: { position: "bottom", labels: { boxWidth: 10 } },
+                tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` } },
               },
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
                 if (!els.length) { setMonthlySelected(null); return; }
@@ -267,10 +285,10 @@ export default function Charts() {
         {monthlySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {monthlySelected}</div>}
       </div>
 
-      {/* TASK BREAKDOWN */}
+      {/* TASK BREAKDOWN — taller, flush grid */}
       <div className="section card">
         <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝓸𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
-        <div style={{ position: "relative", height: 550 }}>
+        <div style={{ position: "relative", height: 620 }}>
           <Bar
             ref={tbRef}
             data={{
@@ -278,22 +296,24 @@ export default function Charts() {
               datasets: [{ label: "Hours", data: tbData, backgroundColor: tbColors.length ? tbColors : "#FFD7E2" }],
             }}
             options={{
-              responsive: true,
-              maintainAspectRatio: false,
+              ...fillBox,
               indexAxis: "y" as const,
               scales: {
                 x: {
                   beginAtZero: true,
-                  min: 0,
-                  max: 200,
-                  ticks: { stepSize: 10, callback: (v) => `${v}h` },
-                  grid: { lineWidth: 0.3 },
+                  grace: 0,
+                  grid: { lineWidth: 0.3, drawBorder: false },
+                  ticks: { callback: (v) => `${v}h` },
+                },
+                y: {
+                  grid: { drawBorder: false, lineWidth: 0.3 },
                 },
               },
               plugins: {
+                ...fillBox.plugins,
                 legend: { display: false },
-                tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
               },
+              elements: { bar: { barPercentage: 0.9, categoryPercentage: 0.9 } },
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
                 if (!els.length) { setTbSelected(null); return; }
                 const { index } = els[0];
@@ -307,10 +327,10 @@ export default function Charts() {
         {tbSelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {tbSelected}</div>}
       </div>
 
-      {/* OVERVIEW (pie) */}
+      {/* OVERVIEW (pie) — taller */}
       <div className="section card">
         <h2>𝒪𝓋𝑒𝓇𝓋𝒾𝑒𝔀</h2>
-        <div style={{ position: "relative", height: 550 }}>
+        <div style={{ position: "relative", height: 620 }}>
           <Pie
             data={{
               labels: overviewLabels,
@@ -319,6 +339,7 @@ export default function Charts() {
             options={{
               responsive: true,
               maintainAspectRatio: false,
+              layout: { padding: 0 },
               plugins: {
                 legend: { position: "bottom" },
                 tooltip: {
