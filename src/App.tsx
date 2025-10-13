@@ -81,7 +81,7 @@ export default function App(){
     <div className="app">
       <div className="header">
         {/* smaller title */}
-        <div className="title" style={{ fontSize: 28 }}>𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷</div>
+        <div className="title" style={{ fontSize: 30 }}>⋆.𐙚 ̊𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷 ྀི</div>
       </div>
 
       <div className="top-grid">
@@ -192,20 +192,26 @@ export default function App(){
         </div>
 
         {/* Sticky area now shows your image from /public/pic.jpg */}
-        <div className="sticky">
-          <img
-            src="/pic.jpg"   // make sure the file is in your repo's /public folder
-            alt="Sticky"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              borderRadius: 0,
-              display: "block"
-            }}
-          />
-        </div>
-      </div>
+        <div
+  className="sticky"
+  style={{
+    borderRadius: 12,
+    overflow: "hidden",
+    background: "none",  // no background color at all
+    boxShadow: "none"    // in case you had any card shadows
+  }}
+>
+  <img
+    src="/pic.jpg"
+    alt="Sticky"
+    style={{
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      display: "block"
+    }}
+  />
+</div>
 
       <Charts />
 
