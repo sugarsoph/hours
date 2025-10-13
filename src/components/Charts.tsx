@@ -43,10 +43,10 @@ export default function Charts() {
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
   // ───────────────────────────────────────────────────────────────
-  // DAILY — always a Mon→Sun week. Default = LAST WEEK (no future blanks).
-  // Slider moves in whole weeks; range limited to past only.
+  // DAILY (always a Mon→Sun week, inclusive). Default shows THIS week.
+  // Use a week-offset slider (in whole weeks). 0 = current week, -1 = last week, +1 = next week.
   // ───────────────────────────────────────────────────────────────
-  const [weekOffset, setWeekOffset] = useState(-1); // -1 = last week, 0 = this week
+  const [weekOffset, setWeekOffset] = useState(0); // whole weeks
   const baseWeekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
   const dailyStart = addWeeks(baseWeekStart, weekOffset);
   const dailyEnd = addDays(dailyStart, 6); // Sunday
@@ -172,7 +172,7 @@ export default function Charts() {
 
   return (
     <div>
-      {/* DAILY — week-aligned Mon→Sun (defaults to last week) */}
+      {/* DAILY — week-aligned Mon→Sun */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h2>𝓓𝓪𝓲𝓵𝔂</h2>
@@ -183,7 +183,7 @@ export default function Charts() {
             <input
               type="range"
               min={-52}
-              max={0}            // no future weeks
+              max={52}
               step={1}
               value={weekOffset}
               onChange={(e) => setWeekOffset(parseInt(e.target.value, 10))}
@@ -194,7 +194,7 @@ export default function Charts() {
             <button
               onClick={() => setWeekOffset(0)}
               style={{ border: "none", background: "transparent", textDecoration: "underline", fontSize: 12, cursor: "pointer" }}
-              aria-label="Jump to this week"
+              aria-label="Reset to current week"
             >
               This week
             </button>
