@@ -25,8 +25,6 @@ import {
   startOfYear,
   endOfYear,
   startOfWeek,
-  endOfWeek,
-  differenceInCalendarWeeks,
 } from "date-fns";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
@@ -45,37 +43,15 @@ export default function Charts() {
     labels.find((l) => l.name === name)?.color_hex || "#FFD7E2";
 
   // ───────────────────────────────────────────────────────────────
-  // DAILY — Mon→Sun, clamped to 13-month window (this month → +12)
-  // Slider maps 0..totalWeeks-1, where 0 = earliest week in the window.
-  // Knob starts at the current week’s index inside the window.
+  // DAILY — always a Mon→Sun week. Default = LAST WEEK (no future blanks).
+  // Slider moves in whole weeks; range limited to past only.
   // ───────────────────────────────────────────────────────────────
-  // Window bounds (months already used by your monthly section)
-  const windowStartMonth = startOfMonth(today);
-  const windowEndMonth = endOfMonth(addMonths(today, 12));
-  // Weeks that cover that window
-  const firstWeekStart = startOfWeek(windowStartMonth, { weekStartsOn: 1 });
-  const lastWeekEnd = endOfWeek(windowEndMonth, { weekStartsOn: 1 });
-  const totalWeeks =
-    differenceInCalendarWeeks(lastWeekEnd, firstWeekStart, { weekStartsOn: 1 }) + 1;
+  const [weekOffset, setWeekOffset] = useState(-1); // -1 = last week, 0 = this week
+  const baseWeekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
+  const dailyStart = addWeeks(baseWeekStart, weekOffset);
+  const dailyEnd = addDays(dailyStart, 6); // Sunday
 
-  // Current week index (0..totalWeeks-1) – initial slider position
-  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-  const initialWeekIndex = clamp(
-    differenceInCalendarWeeks(currentWeekStart, firstWeekStart, { weekStartsOn: 1 }),
-    0,
-    Math.max(totalWeeks - 1, 0)
-  );
-
-  const [weekIndex, setWeekIndex] = useState<number>(initialWeekIndex);
-
-  const dailyStart = addWeeks(firstWeekStart, weekIndex);
-  const dailyEnd = addDays(dailyStart, 6);
-
-  const dailyKey = `/api/entries?from=${format(dailyStart, "yyyy-MM-dd")}&to=${format(
-    dailyEnd,
-    "yyyy-MM-dd"
-  )}`;
+  const dailyKey = `/api/entries?from=${format(dailyStart, "yyyy-MM-dd")}&to=${format(dailyEnd, "yyyy-MM-dd")}`;
   const { data: daily = [] } = useSWR<Entry[]>(dailyKey, api);
 
   const dailyMap = new Map<string, number>();
@@ -83,14 +59,13 @@ export default function Charts() {
 
   const dailyDays = eachDayOfInterval({ start: dailyStart, end: dailyEnd });
 
-  // Abbrev weekdays with period + two-line label: ["Mon.", "13 Oct"]
-  const weekdayAbbr = (d: Date) => `${format(d, "EEE").slice(0, 3)}.`; // Mon. Tue. Wed.
-  const dailyLabels = dailyDays.map(
-    (d) => [weekdayAbbr(d), format(d, "d LLL")] as [string, string]
-  );
-  const dailyData = dailyDays.map((d) =>
-    toHours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0)
-  );
+  // Weekday abbreviations with period (Mon., Tue., …)
+  const weekday = (d: Date) => {
+    const abbr = format(d, "EEE"); // Mon, Tue, Wed...
+    return abbr.length > 3 ? `${abbr.slice(0, 3)}.` : `${abbr}.`;
+  };
+  const dailyLabels = dailyDays.map((d) => `${weekday(d)} ${format(d, "d")}`);
+  const dailyData = dailyDays.map((d) => toHours(dailyMap.get(format(d, "yyyy-MM-dd")) || 0));
 
   // ───────────────────────────────────────────────────────────────
   // MONTHLY (13 stacked bars starting this month; stacked by label)
@@ -104,10 +79,7 @@ export default function Charts() {
   const windowFrom = months[0];
   const windowTo = endOfMonth(addMonths(today, 12)); // inclusive through month+12
 
-  const winKey = `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(
-    windowTo,
-    "yyyy-MM-dd"
-  )}`;
+  const winKey = `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(windowTo, "yyyy-MM-dd")}`;
   const { data: winEntries = [] } = useSWR<Entry[]>(winKey, api);
 
   const labelNames = useMemo(() => {
@@ -126,8 +98,7 @@ export default function Charts() {
 
     winEntries.forEach((e) => {
       const d = new Date(e.day);
-      const offset =
-        (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
+      const offset = (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
       if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes; // < 13
     });
 
@@ -154,10 +125,7 @@ export default function Charts() {
   // ───────────────────────────────────────────────────────────────
   const mStart = startOfMonth(today);
   const mEnd = endOfMonth(today);
-  const monthKey = `/api/entries?from=${format(mStart, "yyyy-MM-dd")}&to=${format(
-    mEnd,
-    "yyyy-MM-dd"
-  )}`;
+  const monthKey = `/api/entries?from=${format(mStart, "yyyy-MM-dd")}&to=${format(mEnd, "yyyy-MM-dd")}`;
   const { data: monthEntries = [] } = useSWR<Entry[]>(monthKey, api);
 
   const byLabelMonth = new Map<string, number>();
@@ -173,10 +141,7 @@ export default function Charts() {
   // ───────────────────────────────────────────────────────────────
   const yStart = startOfYear(today);
   const yEnd = endOfYear(today);
-  const yearKey = `/api/entries?from=${format(yStart, "yyyy-MM-dd")}&to=${format(
-    yEnd,
-    "yyyy-MM-dd"
-  )}`;
+  const yearKey = `/api/entries?from=${format(yStart, "yyyy-MM-dd")}&to=${format(yEnd, "yyyy-MM-dd")}`;
   const { data: yearEntries = [] } = useSWR<Entry[]>(yearKey, api);
 
   const byLabelYear = new Map<string, number>();
@@ -207,7 +172,7 @@ export default function Charts() {
 
   return (
     <div>
-      {/* DAILY — Mon→Sun, clamped to window */}
+      {/* DAILY — week-aligned Mon→Sun (defaults to last week) */}
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h2>𝓓𝓪𝓲𝓵𝔂</h2>
@@ -217,33 +182,17 @@ export default function Charts() {
             </small>
             <input
               type="range"
-              min={0}
-              max={Math.max(totalWeeks - 1, 0)}
+              min={-52}
+              max={0}            // no future weeks
               step={1}
-              value={weekIndex}
-              onChange={(e) =>
-                setWeekIndex(
-                  clamp(parseInt(e.target.value, 10), 0, Math.max(totalWeeks - 1, 0))
-                )
-              }
+              value={weekOffset}
+              onChange={(e) => setWeekOffset(parseInt(e.target.value, 10))}
               style={{ width: 220 }}
-              aria-label="Shift week within window"
-              title="Move by whole weeks (left = earliest)"
+              aria-label="Shift week window"
+              title="Move by whole weeks"
             />
             <button
-              onClick={() =>
-                setWeekIndex(
-                  clamp(
-                    differenceInCalendarWeeks(
-                      startOfWeek(new Date(), { weekStartsOn: 1 }),
-                      firstWeekStart,
-                      { weekStartsOn: 1 }
-                    ),
-                    0,
-                    Math.max(totalWeeks - 1, 0)
-                  )
-                )
-              }
+              onClick={() => setWeekOffset(0)}
               style={{ border: "none", background: "transparent", textDecoration: "underline", fontSize: 12, cursor: "pointer" }}
               aria-label="Jump to this week"
             >
@@ -255,8 +204,7 @@ export default function Charts() {
         <div style={{ position: "relative", height: 460 }}>
           <Bar
             data={{
-              // Chart.js supports multi-line labels by passing arrays
-              labels: dailyLabels as unknown as string[],
+              labels: dailyLabels,
               datasets: [{ label: "Hours", data: dailyData, backgroundColor: "#FFD7E2" }],
             }}
             options={{
@@ -265,15 +213,7 @@ export default function Charts() {
                 x: {
                   offset: false,
                   grid: { drawBorder: false, lineWidth: 0.3 },
-                  ticks: {
-                    autoSkip: false,
-                    maxRotation: 0,
-                    minRotation: 0,
-                    callback: (_val, idx) => {
-                      const pair = dailyLabels[idx as number];
-                      return Array.isArray(pair) ? (pair as unknown as string[]) : pair;
-                    },
-                  },
+                  ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 },
                 },
                 y: {
                   beginAtZero: true,
@@ -287,9 +227,9 @@ export default function Charts() {
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
                 if (!els.length) { setDailySelected(null); return; }
                 const { index } = els[0];
-                const [l1, l2] = dailyLabels[index] as unknown as [string, string];
+                const lbl = dailyLabels[index];
                 const val = dailyData[index] ?? 0;
-                setDailySelected(`${l1} ${l2}: ${fmtH(val)}`);
+                setDailySelected(`${lbl}: ${fmtH(val)}`);
               },
             }}
           />
