@@ -38,4 +38,251 @@ function AppInner({ authNeeded, setAuthNeeded }:{ authNeeded:boolean; setAuthNee
   // Labels (no per-hook onError; global SWRConfig handles 401s)
   const { data: labels = [] } = useSWR<Label[]>("/api/labels");
 
-  // Selec
+  // Selected day (defaults to today)
+  const todayISO = format(new Date(), "yyyy-MM-dd");
+  const [dayISO, setDayISO] = useState<string>(todayISO);
+
+  const [label, setLabel] = useState("");
+  const [minutes, setMinutes] = useState<number>(0);
+  const [showLM, setShowLM] = useState(false);
+
+  // Entries & totals for the selected day
+  const dayKey = `/api/entries?from=${dayISO}&to=${dayISO}`;
+  const { data: entries = [] } = useSWR<Entry[]>(dayKey);
+
+  // Recent list: last 14 days up to selected day (inclusive)
+  const recentStartISO = format(addDays(parseISO(dayISO), -14), "yyyy-MM-dd");
+  const recentKey = `/api/entries?from=${recentStartISO}&to=${dayISO}`;
+  const { data: recent = [] } = useSWR<Entry[]>(recentKey);
+
+  const totalSelectedDay = entries.reduce((s,e)=> s + e.minutes, 0);
+
+  const save = async()=>{
+    if(!label || minutes < 0) return;
+    await api("/api/entries", {
+      method:"POST",
+      body: JSON.stringify({ day: dayISO, label, minutes })
+    });
+    setMinutes(0);
+    // Revalidate the EXACT keys we use, plus a broad entries sweep for charts.
+    await Promise.all([
+      mutate(dayKey),
+      mutate(recentKey),
+      mutate((key)=> typeof key==="string" && key.startsWith("/api/entries")),
+      mutate("/api/labels"),
+    ]);
+  };
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMinutes, setEditMinutes] = useState<number>(0);
+  const [editLabel, setEditLabel] = useState<string>("");
+
+  const startEdit = (e:Entry)=>{
+    setEditingId(e.id);
+    setEditMinutes(e.minutes);
+    setEditLabel(e.label);
+  };
+
+  const doEdit = async(id:string)=>{
+    await api(`/api/entries/${id}`, {
+      method:"PATCH",
+      body: JSON.stringify({ minutes: editMinutes, label: editLabel })
+    });
+    setEditingId(null);
+    await Promise.all([
+      mutate(dayKey),
+      mutate(recentKey),
+      mutate((key)=> typeof key==="string" && key.startsWith("/api/entries")),
+      mutate("/api/labels"),
+    ]);
+  };
+
+  const doDelete = async(id:string)=>{
+    await api(`/api/entries/${id}`, { method:"DELETE" });
+    await Promise.all([
+      mutate(dayKey),
+      mutate(recentKey),
+      mutate((key)=> typeof key==="string" && key.startsWith("/api/entries")),
+      mutate("/api/labels"),
+    ]);
+  };
+
+  return (
+    <div className="app">
+      <div className="header">
+        {/* smaller title */}
+        <div className="title" style={{ fontSize: 30 }}>⋆.𐙚 ̊𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷 ྀི</div>
+      </div>
+
+      <div className="top-grid">
+        <div className="card">
+          {/* Center the block; inputs stacked on the left; big Log button on the right */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "flex-end",
+              gap: "32px",
+              marginTop: "12px",
+            }}
+          >
+            {/* left column (stacked inputs, slightly left aligned) */}
+            <div style={{ display: "flex", flexDirection: "column", width: 260, textAlign: "left" }}>
+              {/* Date */}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Date</label>
+                <input
+                  type="date"
+                  value={dayISO}
+                  onChange={(e) => setDayISO(e.target.value)}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                />
+              </div>
+              {/* Label */}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Label</label>
+                <input
+                  list="labels"
+                  placeholder="˚ ༘ ೀ⋆｡˚"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                />
+                <datalist id="labels">
+                  {labels.map((l) => <option key={l.id} value={l.name} />)}
+                </datalist>
+              </div>
+              {/* Minutes */}
+              <div>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Minutes</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={Number.isFinite(minutes) ? minutes : 0}
+                  onChange={(e) => setMinutes(parseInt(e.target.value || "0") || 0)}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                />
+              </div>
+            </div>
+
+            {/* right column (big Log button + label manager) */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <button
+                className="button"
+                onClick={save}
+                style={{
+                  fontSize: "1.05rem",
+                  padding: "16px 40px",   // larger
+                  backgroundColor: "#a3d0d6",
+                  borderRadius: 12,
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+                }}
+              >
+                Log
+              </button>
+              <button
+                className="action-btn"
+                title="Manage Labels"
+                onClick={() => setShowLM(true)}
+                aria-label="Manage labels"
+                style={{ fontSize: 18, padding: "8px 12px", borderRadius: 10 }}
+              >
+                🏷️
+              </button>
+            </div>
+          </div>
+
+          {/* Total under everything */}
+          <div className="total" style={{ marginTop: 12 }}>
+            Total on {format(parseISO(dayISO), "MMM d")}: {toHours(totalSelectedDay)} h
+          </div>
+
+          <div className="table">
+            {recent.map(e=> (
+              <div className="entry-row" key={e.id}>
+                <div>{e.day}</div>
+                <div>{editingId===e.id? <input value={editLabel} onChange={ev=> setEditLabel(ev.target.value)} /> : e.label}</div>
+                <div>{editingId===e.id? <input type="number" min={0} value={editMinutes} onChange={ev=> setEditMinutes(parseInt(ev.target.value||"0") || 0)} /> : `${e.minutes} min`}</div>
+                <div style={{display:"flex", gap:6, justifyContent:"flex-end"}}>
+                  {editingId===e.id? (
+                    <>
+                      <button className="action-btn" onClick={()=> doEdit(e.id)}>💾</button>
+                      <button className="action-btn" onClick={()=> setEditingId(null)}>✖</button>
+                    </>
+                  ):(
+                    <>
+                      <button className="action-btn" onClick={()=> startEdit(e)}>✎</button>
+                      <button className="action-btn" onClick={()=> doDelete(e.id)}>🗑</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sticky area now shows your image from /public/pic.jpg */}
+        <div
+          className="sticky"
+          style={{
+            borderRadius: 12,
+            overflow: "hidden",
+            background: "none", // no background color at all
+            boxShadow: "none",  // in case you had any card shadows
+          }}
+        >
+          <img
+            src="/pic.jpg"
+            alt="Sticky"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        </div>
+
+        {/* ✅ CLOSE .top-grid here */}
+      </div>
+
+      <Charts />
+
+      <div className="footer">Let's see how you do it. ♡</div>
+
+      <LabelManager open={showLM} onClose={()=> setShowLM(false)} />
+      {authNeeded && <PasswordModal onAuthed={()=>{
+        setAuthNeeded(false);
+        // revalidate everything after unlocking
+        mutate(() => true);
+      }} />}
+    </div>
+  );
+}
+
+function PasswordModal({ onAuthed }:{ onAuthed: ()=>void }){
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const submit = async()=>{
+    setErr(null);
+    try{
+      await api("/api/login", { method:"POST", body: JSON.stringify({ passcode: pass }) });
+      onAuthed();
+      mutate("/api/labels");
+    }catch(e:any){
+      setErr("Incorrect passcode.");
+    }
+  };
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <h3 style={{marginTop:0}}>Enter Passcode</h3>
+        <input type="password" value={pass} onChange={e=> setPass(e.target.value)} style={{width:"100%", padding:"10px 12px", border:"1px solid #eee", borderRadius:10}}/>
+        {err && <div style={{color:"crimson", marginTop:8}}>{err}</div>}
+        <div style={{display:"flex", justifyContent:"flex-end", gap:8, marginTop:12}}>
+          <button className="button" onClick={submit}>Unlock</button>
+        </div>
+      </div>
+    </div>
+  );
+}
