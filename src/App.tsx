@@ -92,72 +92,84 @@ export default function App(){
   return (
     <div className="app">
       <div className="header">
-        <div className="title">𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷</div>
+        <div className="title"> 𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷 </div>
       </div>
 
       <div className="top-grid">
         <div className="card">
-          {/* Simple layout: fields stacked left, actions in a right column */}
+          {/* Center the block; inputs stacked on the left; big Log button on the right */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(280px, 1fr) auto",
-              columnGap: 16,
-              rowGap: 12,
-              alignItems: "end",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "flex-end",
+              gap: "32px",
+              marginTop: "12px",
             }}
           >
-            {/* Date */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>Date</label>
-              <input
-                type="date"
-                value={dayISO}
-                onChange={(e) => setDayISO(e.target.value)}
-                style={{ width: "100%" }}
-              />
+            {/* left column (stacked inputs, slightly left aligned) */}
+            <div style={{ display: "flex", flexDirection: "column", width: 260, textAlign: "left" }}>
+              {/* Date */}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Date</label>
+                <input
+                  type="date"
+                  value={dayISO}
+                  onChange={(e) => setDayISO(e.target.value)}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                />
+              </div>
+              {/* Label */}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Label</label>
+                <input
+                  list="labels"
+                  placeholder="˚ ༘ ೀ⋆｡˚"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                />
+                <datalist id="labels">
+                  {labels.map((l) => <option key={l.id} value={l.name} />)}
+                </datalist>
+              </div>
+              {/* Minutes */}
+              <div>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Minutes</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={Number.isFinite(minutes) ? minutes : 0}
+                  onChange={(e) => setMinutes(parseInt(e.target.value || "0") || 0)}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                />
+              </div>
             </div>
 
-            {/* Actions (Log & Label Manager) — stays to the right of all three fields */}
-            <div style={{ gridRow: "1 / span 3", alignSelf: "start", display: "flex", gap: 10 }}>
-              <button className="button" onClick={save}>Log</button>
+            {/* right column (big Log button + label manager) */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <button
+                className="button"
+                onClick={save}
+                style={{
+                  fontSize: "1.05rem",
+                  padding: "16px 40px",   // bigger than before
+                  backgroundColor: "#FFD7E2",
+                  borderRadius: 12,
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+                }}
+              >
+                Log
+              </button>
               <button
                 className="action-btn"
                 title="Manage Labels"
                 onClick={() => setShowLM(true)}
                 aria-label="Manage labels"
+                style={{ fontSize: 18, padding: "8px 12px", borderRadius: 10 }}
               >
                 🏷️
               </button>
-            </div>
-
-            {/* Label */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>Label</label>
-              <input
-                list="labels"
-                placeholder="˚ ༘ ೀ⋆｡˚"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                style={{ width: "100%" }}
-              />
-              <datalist id="labels">
-                {labels.map((l) => (
-                  <option key={l.id} value={l.name} />
-                ))}
-              </datalist>
-            </div>
-
-            {/* Minutes */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>Minutes</label>
-              <input
-                type="number"
-                min={0}
-                value={Number.isFinite(minutes) ? minutes : 0}
-                onChange={(e) => setMinutes(parseInt(e.target.value || "0") || 0)}
-                style={{ width: "100%" }}
-              />
             </div>
           </div>
 
@@ -190,6 +202,7 @@ export default function App(){
           </div>
         </div>
 
+        {/* Sticky note (we'll swap this to an image next) */}
         <div className="sticky">
           <textarea
             placeholder="Note"
