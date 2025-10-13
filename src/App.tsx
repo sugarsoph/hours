@@ -143,7 +143,7 @@ export default function App(){
                 style={{
                   fontSize: "1.05rem",
                   padding: "16px 40px",   // larger
-                  backgroundColor: "#FFD7E2",
+                  backgroundColor: "#a3d0d6",
                   borderRadius: 12,
                   boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
                 }}
