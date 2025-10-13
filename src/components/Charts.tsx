@@ -59,14 +59,15 @@ export default function Charts() {
 
   // ───────────────────────────────────────────────────────────────
   // MONTHLY (13 stacked bars starting this month; stacked by label)
+  // e.g., if today is Oct 2025 → bars: Oct 2025 ... Oct 2026 (13 total)
   // ───────────────────────────────────────────────────────────────
   const months = useMemo(
     () => Array.from({ length: 13 }, (_, i) => startOfMonth(addMonths(today, i))),
     [today]
   );
-  const monthShorts = months.map((m) => format(m, "LLL")); // Oct, Nov, ...
+  const monthShorts = months.map((m) => format(m, "LLL"));
   const windowFrom = months[0];
-  const windowTo = endOfMonth(addMonths(today, 12)); // ← exactly 13 months inclusive
+  const windowTo = endOfMonth(addMonths(today, 12)); // inclusive through month+12
 
   const winKey = `/api/entries?from=${format(windowFrom, "yyyy-MM-dd")}&to=${format(windowTo, "yyyy-MM-dd")}`;
   const { data: winEntries = [] } = useSWR<Entry[]>(winKey, api);
@@ -83,12 +84,12 @@ export default function Charts() {
     const baseYear = base.getFullYear();
 
     const acc: Record<string, number[]> = {};
-    labelNames.forEach((l) => (acc[l] = new Array(13).fill(0)));
+    labelNames.forEach((l) => (acc[l] = new Array(13).fill(0))); // 13 months
 
     winEntries.forEach((e) => {
       const d = new Date(e.day);
-      const offset = (d.getFullYear() - baseYear) * 13 + (d.getMonth() - baseMonth);
-      if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes;
+      const offset = (d.getFullYear() - baseYear) * 12 + (d.getMonth() - baseMonth);
+      if (offset >= 0 && offset < 13) acc[e.label][offset] += e.minutes; // < 13
     });
 
     return labelNames.map((name) => ({
@@ -201,6 +202,139 @@ export default function Charts() {
               onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
                 if (!els.length) { setDailySelected(null); return; }
                 const { index } = els[0];
-                const label = dailyLabels[index];
+                const lbl = dailyLabels[index];
                 const val = dailyData[index] ?? 0;
-                setDailySelected(`${la
+                setDailySelected(`${lbl}: ${fmtH(val)}`);
+              },
+            }}
+          />
+        </div>
+        {dailySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {dailySelected}</div>}
+      </div>
+
+      {/* MONTHLY — 13 stacked bars */}
+      <div className="section card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <h2 className="plain-title">𝓜𝓸𝓷𝓽𝓱𝓵𝔂</h2>
+          <small>{yearCaption}</small>
+        </div>
+
+        <div style={{ position: "relative", height: 360, overflow: "hidden" }}>
+          <Bar
+            ref={monthlyRef}
+            data={{
+              labels: monthShorts,
+              datasets: stackedDatasets,
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  stacked: true,
+                  grid: { display: true, lineWidth: 0.3 },
+                  ticks: { autoSkip: false },
+                },
+                y: {
+                  stacked: true,
+                  beginAtZero: true,
+                  min: 0,
+                  max: 200,
+                  ticks: { stepSize: 10, callback: (v) => `${v}h` },
+                  grid: { lineWidth: 0.3 },
+                },
+              },
+              plugins: {
+                legend: { position: "bottom", labels: { boxWidth: 10 } },
+                tooltip: {
+                  callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue} h` },
+                },
+              },
+              elements: {
+                bar: { barPercentage: 0.65, categoryPercentage: 0.65, borderWidth: 0, maxBarThickness: 26 },
+              },
+              onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
+                if (!els.length) { setMonthlySelected(null); return; }
+                const { index, datasetIndex } = els[0];
+                const monthLabel = monthShorts[index];
+                const segLabel = stackedDatasets[datasetIndex]?.label ?? "";
+                const val = stackedDatasets[datasetIndex]?.data?.[index] ?? 0;
+                setMonthlySelected(`${monthLabel} — ${segLabel}: ${fmtH(Number(val))}`);
+              },
+            }}
+          />
+        </div>
+        {monthlySelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {monthlySelected}</div>}
+      </div>
+
+      {/* TASK BREAKDOWN */}
+      <div className="section card">
+        <h2>𝐵𝓇𝑒𝒶𝓀𝒹𝓸𝓌𝓃  𝐵𝓎  𝒯𝒶𝓈𝓀</h2>
+        <div style={{ position: "relative", height: 550 }}>
+          <Bar
+            ref={tbRef}
+            data={{
+              labels: tbLabels,
+              datasets: [{ label: "Hours", data: tbData, backgroundColor: tbColors.length ? tbColors : "#FFD7E2" }],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              indexAxis: "y" as const,
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  min: 0,
+                  max: 200,
+                  ticks: { stepSize: 10, callback: (v) => `${v}h` },
+                  grid: { lineWidth: 0.3 },
+                },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => `${ctx.formattedValue} h` } },
+              },
+              onClick: (_evt: ChartEvent, els: ActiveElement[]) => {
+                if (!els.length) { setTbSelected(null); return; }
+                const { index } = els[0];
+                const lbl = tbLabels[index] ?? "";
+                const val = tbData[index] ?? 0;
+                setTbSelected(`${lbl}: ${fmtH(val)}`);
+              },
+            }}
+          />
+        </div>
+        {tbSelected && <div style={{ marginTop: 6, fontSize: 12 }}>Selected: {tbSelected}</div>}
+      </div>
+
+      {/* OVERVIEW (pie) */}
+      <div className="section card">
+        <h2>𝒪𝓋𝑒𝓇𝓋𝒾𝑒𝔀</h2>
+        <div style={{ position: "relative", height: 550 }}>
+          <Pie
+            data={{
+              labels: overviewLabels,
+              datasets: [{ data: overviewData, backgroundColor: overviewColors.length ? overviewColors : ["#FFD7E2"], borderWidth: 0 }],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: "bottom" },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const label = ctx.label || "";
+                      const val = ctx.parsed as number;
+                      return `${label}: ${val.toFixed(2)} h`;
+                    },
+                  },
+                },
+              },
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
