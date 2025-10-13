@@ -200,7 +200,7 @@ export default function App(){
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              borderRadius: 12,
+              borderRadius: 0,
               display: "block"
             }}
           />
