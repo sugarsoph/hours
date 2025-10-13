@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import useSWR, { mutate } from "swr";
 import { api } from "./lib/api";
 import Charts from "./components/Charts";
@@ -52,18 +52,6 @@ export default function App(){
     ]);
   };
 
-  const { data: noteData } = useSWR<{content:string}>("/api/sticky-note", api);
-  const [note, setNote] = useState("");
-  useEffect(()=>{ if(noteData) setNote(noteData.content||""); }, [noteData]);
-  useEffect(()=>{
-    const h = setTimeout(()=>{
-      if(!authNeeded){
-        api("/api/sticky-note", { method:"PUT", body: JSON.stringify({ content: note }) }).catch(()=>{});
-      }
-    }, 700);
-    return ()=> clearTimeout(h);
-  }, [note, authNeeded]);
-
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editMinutes, setEditMinutes] = useState<number>(0);
   const [editLabel, setEditLabel] = useState<string>("");
@@ -92,7 +80,8 @@ export default function App(){
   return (
     <div className="app">
       <div className="header">
-        <div className="title"> 𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷 </div>
+        {/* smaller title */}
+        <div className="title" style={{ fontSize: 28 }}>𝓗𝓸𝓾𝓻𝓼    𝓢𝓪𝓽    𝓓𝓸𝔀𝓷</div>
       </div>
 
       <div className="top-grid">
@@ -153,7 +142,7 @@ export default function App(){
                 onClick={save}
                 style={{
                   fontSize: "1.05rem",
-                  padding: "16px 40px",   // bigger than before
+                  padding: "16px 40px",   // larger
                   backgroundColor: "#FFD7E2",
                   borderRadius: 12,
                   boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
@@ -202,14 +191,17 @@ export default function App(){
           </div>
         </div>
 
-        {/* Sticky note (we'll swap this to an image next) */}
+        {/* Sticky area now shows your image from /public/pic.jpg */}
         <div className="sticky">
-          <textarea
-            placeholder="Note"
-            value={note}
-            onChange={e=> setNote(e.target.value)}
-            onBlur={()=>{
-              api("/api/sticky-note", { method:"PUT", body: JSON.stringify({ content: note }) }).catch(()=>{});
+          <img
+            src="/pic.jpg"   // make sure the file is in your repo's /public folder
+            alt="Sticky"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              borderRadius: 12,
+              display: "block"
             }}
           />
         </div>
