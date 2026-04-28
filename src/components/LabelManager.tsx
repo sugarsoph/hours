@@ -54,25 +54,31 @@ export default function LabelManager({ open, onClose }:{ open:boolean; onClose:(
             ))}
           </div>
           <div style={{width:200}}>
-            <div className="pastel-wheel" onClick={e=>{
-              // naive pastel pick: map click angle to hue, fixed s/l
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              const cx = rect.left + rect.width/2;
-              const cy = rect.top + rect.height/2;
-              const angle = Math.atan2(e.clientY - cy, e.clientX - cx);
-              const deg = ((angle*180/Math.PI)+360)%360;
-              const h = Math.round(deg);
-              const col = `hsl(${h}, 70%, 85%)`;
-              // convert to hex via canvas
-              const canvas = document.createElement("canvas");
-              canvas.width = 1; canvas.height=1;
-              const ctx = canvas.getContext("2d")!;
-              ctx.fillStyle = col; ctx.fillRect(0,0,1,1);
-              const data = ctx.getImageData(0,0,1,1).data;
-              const toHex = (n:number)=> n.toString(16).padStart(2,"0");
-              const hex = `#${toHex(data[0])}${toHex(data[1])}${toHex(data[2])}`.toUpperCase();
-              setHex(hex);
-            }} />
+            <div className="pastel-wheel" onClick={(e) => {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+
+  const x = e.clientX - rect.left - rect.width / 2;
+  const y = e.clientY - rect.top - rect.height / 2;
+
+  const angle = Math.atan2(y, x);
+  let deg = angle * (180 / Math.PI);
+  if (deg < 0) deg += 360;
+
+  const col = `hsl(${Math.round(deg)}, 80%, 70%)`;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = col;
+  ctx.fillRect(0, 0, 1, 1);
+
+  const data = ctx.getImageData(0, 0, 1, 1).data;
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+
+  const hex = `#${toHex(data[0])}${toHex(data[1])}${toHex(data[2])}`.toUpperCase();
+  setHex(hex);
+}} />
             <div style={{textAlign:"center", marginTop:8}}>
               <div style={{display:"inline-flex", alignItems:"center", gap:8}}>
                 <span className="color-swatch" style={{background:hex}}/>
