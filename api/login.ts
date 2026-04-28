@@ -1,8 +1,7 @@
 // api/login.ts
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { setSessionCookie } from "./_utils/auth.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse){
+export default async function handler(req: any, res: any){
   if (req.method !== "POST") return res.status(405).end();
   const { passcode } = req.body || {};
   if (!process.env.APP_PASSCODE) return res.status(500).json({ error: "APP_PASSCODE not set" });
