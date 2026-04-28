@@ -6,8 +6,22 @@ export default async function handler(req: any, res: any){
   // try{ assertAuth(req, res); }catch{ return; }
   const client = supa();
 
-  if (req.method === "GET"){
-  return res.status(200).json({ ok: true });
+ if (req.method === "GET"){
+  const { from, to } = req.query as any;
+
+  let q = client
+    .from("entries")
+    .select("*")
+    .order("day", { ascending: true });
+
+  if (from) q = q.gte("day", from);
+  if (to)   q = q.lte("day", to);
+
+  const { data, error } = await q;
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.status(200).json(data || []);
 }
 
   if (req.method === "POST"){
