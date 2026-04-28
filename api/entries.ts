@@ -30,21 +30,12 @@ export default async function handler(req: any, res: any){
     return res.status(400).json({ error:"Missing fields" });
   }
 
-  // 🔥 ALWAYS ensure label exists FIRST
-  const { data: existing } = await client
-    .from("labels")
-    .select("id")
-    .eq("name", label)
-    .maybeSingle();
+  // 🔥 FORCE insert label (no check)
+  await client.from("labels").insert({
+    name: label,
+    color_hex: "#FFD7E2"
+  });
 
-  if (!existing) {
-    await client.from("labels").insert({
-      name: label,
-      color_hex: "#FFD7E2"
-    });
-  }
-
-  // insert entry
   const { data, error } = await client
     .from("entries")
     .insert({ day, label, minutes, note })
