@@ -55,7 +55,7 @@ export default function LabelManager({ open, onClose }:{ open:boolean; onClose:(
           <div style={{width:200}}>
             <div className="pastel-wheel" onClick={e=>{
               // naive pastel pick: map click angle to hue, fixed s/l
-              const rect = (e.target as HTMLElement).getBoundingClientRect();
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
               const cx = rect.left + rect.width/2;
               const cy = rect.top + rect.height/2;
               const angle = Math.atan2(e.clientY - cy, e.clientX - cx);
