@@ -25,24 +25,33 @@ export default async function handler(req: any, res: any){
 }
 
   if (req.method === "POST"){
-    const { day, label, minutes, note } = req.body || {};
-    if (!day || !label || minutes == null) return res.status(400).json({ error:"Missing fields" });
-
-    // ensure label exists
-  await client.from("labels").upsert(
-  { name: label, color_hex: "#888888" },
-  { onConflict: "name" }
-);
-
-    // insert entry and RETURN the row
-    const { data, error } = await client.from("entries")
-      .insert({ day, label, minutes, note })
-      .select()
-      .single();
-
-    if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json({ id: data.id, day: data.day, label: data.label, minutes: data.minutes });
+  const { day, label, minutes, note } = req.body || {};
+  if (!day || !label || minutes == null) {
+    return res.status(400).json({ error:"Missing fields" });
   }
 
-  return res.status(405).end();
+  // 🔥 ALWAYS ensure label exists FIRST
+  const { data: existing } = await client
+    .from("labels")
+    .select("id")
+    .eq("name", label)
+    .maybeSingle();
+
+  if (!existing) {
+    await client.from("labels").insert({
+      name: label,
+      color_hex: "#FFD7E2"
+    });
+  }
+
+  // insert entry
+  const { data, error } = await client
+    .from("entries")
+    .insert({ day, label, minutes, note })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.status(200).json(data);
 }
