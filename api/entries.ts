@@ -7,14 +7,8 @@ export default async function handler(req: any, res: any){
   const client = supa();
 
   if (req.method === "GET"){
-    const { from, to } = req.query as any;
-    let q = client.from("entries").select("*").order("day",{ ascending:true });
-    if (from) q = q.gte("day", from);
-    if (to)   q = q.lte("day", to);  // ← inclusive upper bound
-    const { data, error } = await q;
-    if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json(data);
-  }
+  return res.status(200).json({ ok: true });
+}
 
   if (req.method === "POST"){
     const { day, label, minutes, note } = req.body || {};
