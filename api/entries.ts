@@ -29,7 +29,10 @@ export default async function handler(req: any, res: any){
     if (!day || !label || minutes == null) return res.status(400).json({ error:"Missing fields" });
 
     // ensure label exists
-    await client.from("labels").upsert({ name: label }, { onConflict:"name" });
+  await client.from("labels").upsert(
+  { name: label, color_hex: "#888888" },
+  { onConflict: "name" }
+);
 
     // insert entry and RETURN the row
     const { data, error } = await client.from("entries")
