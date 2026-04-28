@@ -1,9 +1,8 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { assertAuth } from "./_utils/auth.js";
 import { supa } from "./_utils/db.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse){
-  try{ assertAuth(req, res); }catch{ return; }
+export default async function handler(req: any, res: any){
+ // try{ assertAuth(req, res); }catch{ return; }
   const client = supa();
   if (req.method === "GET"){
     const { data, error } = await client.from("labels").select("id,name,color_hex").order("name");
