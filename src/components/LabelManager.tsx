@@ -11,16 +11,17 @@ export default function LabelManager({ open, onClose }:{ open:boolean; onClose:(
 
   const [hex, setHex] = useState("#FFD7E2");
 
-  const onSave = async()=>{
+  const onSave = async () => {
   for (const d of drafts) {
-    await api("/api/labels", {
-      method: "POST",
+    await api(`/api/labels/${d.id}`, {
+      method: "PATCH",
       body: JSON.stringify({
         name: d.name,
-        color_hex: d.color_hex || "#888888"
+        color_hex: d.color_hex || "#FFD7E2"
       })
     });
   }
+
   await mutate("/api/labels");
   onClose();
 };
