@@ -12,15 +12,18 @@ export default function LabelManager({ open, onClose }:{ open:boolean; onClose:(
   const [hex, setHex] = useState("#FFD7E2");
 
   const onSave = async()=>{
-    for (const d of drafts) {
-      const orig = labels?.find(l => l.id === d.id);
-      if (!orig || orig.name !== d.name || orig.color_hex !== d.color_hex) {
-        await api(`/api/labels/${d.id}`, { method:"PATCH", body: JSON.stringify({ name: d.name, color_hex: d.color_hex }) });
-      }
-    }
-    await mutate("/api/labels");
-    onClose();
-  };
+  for (const d of drafts) {
+    await api("/api/labels", {
+      method: "POST",
+      body: JSON.stringify({
+        name: d.name,
+        color_hex: d.color_hex || "#888888"
+      })
+    });
+  }
+  await mutate("/api/labels");
+  onClose();
+};
 
   const onDelete = async(id:string)=>{
     await api(`/api/labels/${id}`, { method: "DELETE" });
@@ -74,9 +77,16 @@ export default function LabelManager({ open, onClose }:{ open:boolean; onClose:(
                 <span className="color-swatch" style={{background:hex}}/>
                 <input value={hex} onChange={e=>setHex(e.target.value)} />
                 <button className="button" onClick={()=>{
-                  // apply to all selected? here, last edited row if any
-                  setDrafts(ds=> ds.length? ds.map((d, i)=> i===ds.length-1? {...d, color_hex: hex }: d): ds);
-                }}>Apply to last</button>
+  setDrafts(ds => {
+    if (!ds.length) return ds;
+    const idx = ds.length - 1;
+    return ds.map((d, i) =>
+      i === idx ? { ...d, color_hex: hex } : d
+    );
+  });
+}}>
+  Apply to last
+</button>
               </div>
             </div>
           </div>
