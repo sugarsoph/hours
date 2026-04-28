@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { api } from "@/lib/api";
+import { api } from "../lib/api";
 
 type Label = { id: string; name: string; color_hex: string | null };
 
